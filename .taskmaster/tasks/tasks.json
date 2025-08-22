@@ -1,0 +1,796 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Repository",
+        "description": "Initialize the project repository with version control and basic structure.",
+        "details": "Create a Git repository for the project. Set up the initial directory structure with folders for frontend, backend, and shared assets. Initialize a README file with project overview and setup instructions.",
+        "testStrategy": "Verify repository accessibility and correct directory structure.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Git Repository",
+            "description": "Initialize a new Git repository for the project.",
+            "dependencies": [],
+            "details": "Use the command line to navigate to the desired directory and run 'git init' to create a new Git repository. Ensure that Git is installed and configured on your system.",
+            "status": "done",
+            "testStrategy": "Verify that the '.git' directory is created and that Git commands like 'git status' work without errors."
+          },
+          {
+            "id": 2,
+            "title": "Set Up Initial Directory Structure",
+            "description": "Create the initial directory structure with folders for frontend, backend, and shared assets.",
+            "dependencies": [],
+            "details": "Within the root of the repository, create three main directories: 'frontend', 'backend', and 'shared'. Use command line or file explorer to create these directories.",
+            "status": "done",
+            "testStrategy": "Check that the directories 'frontend', 'backend', and 'shared' exist in the root of the repository."
+          },
+          {
+            "id": 3,
+            "title": "Initialize README File",
+            "description": "Create a README file with a project overview and setup instructions.",
+            "dependencies": [],
+            "details": "In the root directory, create a 'README.md' file. Include a brief project overview, purpose, and basic setup instructions. Use Markdown syntax for formatting.",
+            "status": "done",
+            "testStrategy": "Open the README file in a Markdown viewer to ensure proper formatting and readability."
+          },
+          {
+            "id": 4,
+            "title": "Add .gitignore File",
+            "description": "Create a .gitignore file to exclude unnecessary files from version control.",
+            "dependencies": [],
+            "details": "Create a '.gitignore' file in the root directory. Include common patterns to ignore, such as 'node_modules/', '.env', and 'dist/'. Customize based on project needs.",
+            "status": "done",
+            "testStrategy": "Add a test file matching a pattern in .gitignore and verify it is not tracked by Git."
+          },
+          {
+            "id": 5,
+            "title": "Commit Initial Setup",
+            "description": "Make the initial commit with the basic project setup.",
+            "dependencies": [],
+            "details": "Stage all files using 'git add .' and commit them with a message like 'Initial project setup'. Ensure all necessary files are included.",
+            "status": "in-progress",
+            "testStrategy": "Run 'git log' to verify the commit is recorded with the correct message."
+          },
+          {
+            "id": 6,
+            "title": "Set Up Remote Repository",
+            "description": "Link the local repository to a remote repository on a platform like GitHub.",
+            "dependencies": [],
+            "details": "Create a new repository on GitHub. Use 'git remote add origin <repository-url>' to link the local repo to the remote. Push the initial commit using 'git push -u origin main'.",
+            "status": "pending",
+            "testStrategy": "Check the remote repository on GitHub to ensure the initial commit and files are present."
+          },
+          {
+            "id": 7,
+            "title": "Configure Branch Protection Rules",
+            "description": "Set up branch protection rules to ensure code quality and prevent accidental changes to the main branch.",
+            "dependencies": [],
+            "details": "In the GitHub repository settings, navigate to 'Branches' and configure protection rules for the main branch. Require pull request reviews and status checks before merging.",
+            "status": "pending",
+            "testStrategy": "Attempt to push directly to the main branch to verify that the protection rules are enforced."
+          },
+          {
+            "id": 8,
+            "title": "Document Repository Setup Process",
+            "description": "Document the steps taken to set up the repository for future reference.",
+            "dependencies": [],
+            "details": "Update the README or create a separate documentation file detailing the repository setup process, including commands used and configurations made.",
+            "status": "pending",
+            "testStrategy": "Review the documentation for completeness and accuracy. Ensure it can be followed to replicate the setup."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Name Input Parsing",
+        "description": "Develop the system to parse and validate name inputs with optional weights.",
+        "details": "Create a function to parse input strings in the format 'name*weight'. Validate entries for correct format, handle duplicates, and normalize weights. Use regular expressions for parsing and validation.",
+        "testStrategy": "Unit tests for various input scenarios including edge cases and invalid formats.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Develop Basic Race Mechanics",
+        "description": "Implement the core race mechanics with a single oval track and AI-controlled cars.",
+        "details": "Use React Three Fiber for 3D rendering and Rapier for physics. Implement AI-controlled cars with identical parameters and a simple oval track. Ensure consistent physics and fair AI behavior.",
+        "testStrategy": "Simulate races to ensure fair AI behavior and consistent physics.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up React Three Fiber Environment",
+            "description": "Initialize a React project and configure React Three Fiber for 3D rendering.",
+            "dependencies": [],
+            "details": "Create a new React application using Create React App or a similar tool. Install React Three Fiber and set up a basic scene with a camera and lighting to ensure the 3D environment is ready for further development.",
+            "status": "pending",
+            "testStrategy": "Render a simple 3D object to verify the setup."
+          },
+          {
+            "id": 2,
+            "title": "Integrate Rapier Physics Engine",
+            "description": "Add Rapier physics engine to the project for handling physics simulations.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Install Rapier and integrate it with the React Three Fiber setup. Configure basic physics properties such as gravity and collision detection to ensure the environment is ready for dynamic interactions.",
+            "status": "pending",
+            "testStrategy": "Simulate a basic physics scenario to verify integration."
+          },
+          {
+            "id": 3,
+            "title": "Design Oval Track Model",
+            "description": "Create a 3D model of a simple oval track for the race.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Use a 3D modeling tool like Blender to design an oval track. Export the model in a format compatible with React Three Fiber, such as GLTF or OBJ, and import it into the project.",
+            "status": "pending",
+            "testStrategy": "Render the track in the scene to ensure correct loading and positioning."
+          },
+          {
+            "id": 4,
+            "title": "Implement Track Physics",
+            "description": "Apply physics properties to the oval track to enable interaction with AI cars.",
+            "dependencies": [
+              "3.2",
+              "3.3"
+            ],
+            "details": "Use Rapier to add collision detection and friction properties to the track surface. Ensure that the track can interact with dynamic objects like AI cars.",
+            "status": "pending",
+            "testStrategy": "Test collision and friction by simulating a simple object moving on the track."
+          },
+          {
+            "id": 5,
+            "title": "Develop AI Car Model",
+            "description": "Create a 3D model for the AI-controlled cars.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Design a basic car model using a 3D modeling tool. Ensure the model is optimized for performance and export it in a compatible format for React Three Fiber.",
+            "status": "pending",
+            "testStrategy": "Render the car model in the scene to verify appearance and scale."
+          },
+          {
+            "id": 6,
+            "title": "Implement AI Car Physics",
+            "description": "Apply physics properties to the AI car model to enable realistic movement.",
+            "dependencies": [
+              "3.2",
+              "3.5"
+            ],
+            "details": "Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.",
+            "status": "pending",
+            "testStrategy": "Simulate car movement and collision with the track to verify physics behavior."
+          },
+          {
+            "id": 7,
+            "title": "Develop Basic AI Behavior",
+            "description": "Implement basic AI logic to control car movement around the track.",
+            "dependencies": [
+              "3.6"
+            ],
+            "details": "Create a simple AI algorithm that controls car acceleration, steering, and braking to navigate the oval track. Ensure the AI can complete laps consistently.",
+            "status": "pending",
+            "testStrategy": "Run simulations to observe AI behavior and adjust parameters for consistent lap completion."
+          },
+          {
+            "id": 8,
+            "title": "Ensure Consistent Physics",
+            "description": "Verify and adjust physics settings for consistent behavior across all AI cars.",
+            "dependencies": [
+              "3.4",
+              "3.6"
+            ],
+            "details": "Review and fine-tune physics parameters such as friction, mass, and collision response to ensure all AI cars behave consistently and fairly.",
+            "status": "pending",
+            "testStrategy": "Conduct multiple race simulations to check for consistent physics across different scenarios."
+          },
+          {
+            "id": 9,
+            "title": "Implement Lap Timing System",
+            "description": "Develop a system to track and display lap times for AI cars.",
+            "dependencies": [
+              "3.7"
+            ],
+            "details": "Create a timing mechanism that records lap times for each AI car. Display the times on the screen using a simple UI component.",
+            "status": "pending",
+            "testStrategy": "Verify lap timing accuracy by comparing with manual timing."
+          },
+          {
+            "id": 10,
+            "title": "Create Race Start and Finish Logic",
+            "description": "Implement logic to handle race start, lap counting, and race finish.",
+            "dependencies": [
+              "3.9"
+            ],
+            "details": "Develop a system to manage race start conditions, track lap counts for each car, and determine the race finish based on lap completion.",
+            "status": "pending",
+            "testStrategy": "Simulate full races to ensure correct start, lap counting, and finish detection."
+          },
+          {
+            "id": 11,
+            "title": "Develop Basic UI for Race Information",
+            "description": "Create a user interface to display race information such as positions and lap times.",
+            "dependencies": [
+              "3.9",
+              "3.10"
+            ],
+            "details": "Design and implement a simple UI overlay that shows real-time race information, including car positions, lap times, and race status.",
+            "status": "pending",
+            "testStrategy": "Check UI responsiveness and accuracy during race simulations."
+          },
+          {
+            "id": 12,
+            "title": "Conduct Comprehensive Testing",
+            "description": "Perform thorough testing of all race mechanics to ensure functionality and fairness.",
+            "dependencies": [
+              "3.8",
+              "3.10",
+              "3.11"
+            ],
+            "details": "Run extensive simulations to test all aspects of the race mechanics, including AI behavior, physics consistency, and UI accuracy. Identify and fix any issues that arise.",
+            "status": "pending",
+            "testStrategy": "Use automated and manual testing methods to validate all race mechanics and ensure fair AI behavior."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Create Seed Commit/Reveal System",
+        "description": "Implement the seed commit/reveal system for fairness verification.",
+        "details": "Develop a system to generate a SHA256 hash of the seed (serverSalt + entrants + timestamp) before the race. Reveal the original seed after the race for verification purposes.",
+        "testStrategy": "Verify hash generation and seed reveal process through unit tests and manual verification.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define Seed Structure",
+            "description": "Define the structure of the seed, which includes serverSalt, entrants, and timestamp.",
+            "dependencies": [],
+            "details": "Create a data structure to hold the serverSalt, entrants, and timestamp. Ensure that this structure can be easily serialized for hash generation.",
+            "status": "pending",
+            "testStrategy": "Verify that the seed structure correctly holds and serializes the required data."
+          },
+          {
+            "id": 2,
+            "title": "Implement SHA256 Hash Generation",
+            "description": "Develop a function to generate a SHA256 hash from the seed.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Use a cryptographic library to implement a function that takes the seed structure, serializes it, and returns a SHA256 hash.",
+            "status": "pending",
+            "testStrategy": "Test the hash generation with known inputs to ensure it produces the correct hash."
+          },
+          {
+            "id": 3,
+            "title": "Store Hash Before Race",
+            "description": "Store the generated hash securely before the race begins.",
+            "dependencies": [
+              "4.2"
+            ],
+            "details": "Implement a mechanism to store the hash in a secure and immutable manner, such as in a database or a blockchain.",
+            "status": "pending",
+            "testStrategy": "Verify that the hash is stored correctly and cannot be altered after storage."
+          },
+          {
+            "id": 4,
+            "title": "Design Seed Reveal Mechanism",
+            "description": "Design a mechanism to reveal the original seed after the race.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create a process to securely retrieve and display the original seed to participants for verification purposes.",
+            "status": "pending",
+            "testStrategy": "Ensure that the seed can be retrieved and matches the stored hash when revealed."
+          },
+          {
+            "id": 5,
+            "title": "Implement Seed Reveal Functionality",
+            "description": "Implement the functionality to reveal the seed after the race.",
+            "dependencies": [
+              "4.4"
+            ],
+            "details": "Develop the code to execute the seed reveal process, ensuring it is triggered at the correct time and securely displays the seed.",
+            "status": "pending",
+            "testStrategy": "Test the reveal process to ensure it occurs only after the race and displays the correct seed."
+          },
+          {
+            "id": 6,
+            "title": "Integrate with Race Management System",
+            "description": "Integrate the commit/reveal system with the existing race management system.",
+            "dependencies": [
+              "4.3",
+              "4.5"
+            ],
+            "details": "Ensure that the commit/reveal system is seamlessly integrated with the race management system, triggering hash storage and seed reveal at appropriate times.",
+            "status": "pending",
+            "testStrategy": "Simulate a race to verify that the commit and reveal processes are correctly integrated and function as expected."
+          },
+          {
+            "id": 7,
+            "title": "Develop User Interface for Verification",
+            "description": "Create a user interface to allow participants to verify the seed and hash.",
+            "dependencies": [
+              "4.5"
+            ],
+            "details": "Design and implement a UI component that displays the seed and hash, allowing users to verify the fairness of the race.",
+            "status": "pending",
+            "testStrategy": "Conduct user testing to ensure the UI is intuitive and correctly displays the necessary information for verification."
+          },
+          {
+            "id": 8,
+            "title": "Conduct Security Audit",
+            "description": "Perform a security audit of the commit/reveal system to ensure data integrity and security.",
+            "dependencies": [
+              "4.6",
+              "4.7"
+            ],
+            "details": "Review the entire system for potential vulnerabilities, focusing on data storage, hash generation, and seed reveal processes.",
+            "status": "pending",
+            "testStrategy": "Use security testing tools and manual review to identify and address any security issues."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Integrate OBS Browser Source Compatibility",
+        "description": "Ensure the application can be used as a browser source in OBS for streaming.",
+        "details": "Implement features to support transparent backgrounds and 1080p/60fps presets. Test integration with OBS to ensure seamless streaming.",
+        "testStrategy": "Test OBS integration by setting up a stream and verifying video quality and transparency.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement Basic Replay Functionality",
+        "description": "Develop a system to record and replay races.",
+        "details": "Create a mechanism to record race data and allow users to replay races. Store race data in a format that can be easily replayed and verified.",
+        "testStrategy": "Test replay functionality by recording and replaying multiple races, ensuring accuracy and consistency.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Setup Frontend with React Three Fiber",
+        "description": "Initialize the frontend using React Three Fiber for 3D rendering.",
+        "details": "Set up a React application with React Three Fiber and drei helpers for 3D rendering. Configure Tailwind CSS for styling.",
+        "testStrategy": "Verify the setup by rendering a basic 3D scene and checking for any rendering issues.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize React Application",
+            "description": "Set up a new React application using Create React App.",
+            "dependencies": [],
+            "details": "Use the command 'npx create-react-app my-app' to initialize a new React project. Ensure the project is set up in the correct directory structure as defined in Task 1.",
+            "status": "pending",
+            "testStrategy": "Verify that the React application runs successfully with 'npm start'."
+          },
+          {
+            "id": 2,
+            "title": "Install React Three Fiber",
+            "description": "Add React Three Fiber to the React application for 3D rendering capabilities.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Run 'npm install @react-three/fiber' to add React Three Fiber to the project.",
+            "status": "pending",
+            "testStrategy": "Check that the package is listed in package.json and can be imported without errors."
+          },
+          {
+            "id": 3,
+            "title": "Install Drei Helpers",
+            "description": "Install Drei, a collection of useful helpers for React Three Fiber.",
+            "dependencies": [
+              "7.2"
+            ],
+            "details": "Execute 'npm install @react-three/drei' to include Drei helpers in the project.",
+            "status": "pending",
+            "testStrategy": "Ensure that Drei components can be imported and used in the project."
+          },
+          {
+            "id": 4,
+            "title": "Configure Tailwind CSS",
+            "description": "Set up Tailwind CSS for styling the React application.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Follow the Tailwind CSS installation guide for Create React App. Install Tailwind CSS and its dependencies, then configure the tailwind.config.js file.",
+            "status": "pending",
+            "testStrategy": "Verify that Tailwind CSS styles are applied correctly by adding a sample styled component."
+          },
+          {
+            "id": 5,
+            "title": "Create Basic 3D Scene",
+            "description": "Implement a basic 3D scene using React Three Fiber to verify the setup.",
+            "dependencies": [
+              "7.2",
+              "7.3"
+            ],
+            "details": "Create a simple 3D scene with a cube using React Three Fiber. Use Drei helpers for lighting and camera controls.",
+            "status": "pending",
+            "testStrategy": "Render the scene and ensure the cube is displayed correctly with lighting effects."
+          },
+          {
+            "id": 6,
+            "title": "Set Up Project Structure for Components",
+            "description": "Organize the project structure to accommodate 3D components and styling.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Create directories for components, styles, and assets. Ensure the structure supports easy scalability for future development.",
+            "status": "pending",
+            "testStrategy": "Check that the directory structure is clear and components are organized logically."
+          },
+          {
+            "id": 7,
+            "title": "Integrate Tailwind CSS with 3D Components",
+            "description": "Apply Tailwind CSS styles to the 3D components to ensure consistent styling.",
+            "dependencies": [
+              "7.4",
+              "7.6"
+            ],
+            "details": "Use Tailwind CSS classes to style the 3D scene and UI components. Ensure styles are responsive and visually appealing.",
+            "status": "pending",
+            "testStrategy": "Verify that styles are applied correctly and adjust as necessary for visual consistency."
+          },
+          {
+            "id": 8,
+            "title": "Implement Responsive Design",
+            "description": "Ensure the 3D scene and UI are responsive across different screen sizes.",
+            "dependencies": [
+              "7.7"
+            ],
+            "details": "Use Tailwind CSS's responsive utilities to adjust the layout and styling for various screen sizes.",
+            "status": "pending",
+            "testStrategy": "Test the application on different devices and screen sizes to ensure responsiveness."
+          },
+          {
+            "id": 9,
+            "title": "Optimize Performance",
+            "description": "Optimize the React Three Fiber setup for better performance.",
+            "dependencies": [
+              "7.5",
+              "7.8"
+            ],
+            "details": "Implement performance optimizations such as lazy loading components and using React.memo where applicable.",
+            "status": "pending",
+            "testStrategy": "Use performance profiling tools to identify bottlenecks and verify improvements."
+          },
+          {
+            "id": 10,
+            "title": "Conduct Final Testing",
+            "description": "Perform comprehensive testing of the setup to ensure all components work as expected.",
+            "dependencies": [
+              "7.9"
+            ],
+            "details": "Test the application thoroughly, including rendering, styling, and responsiveness. Address any issues found during testing.",
+            "status": "pending",
+            "testStrategy": "Conduct manual testing and use automated tests to verify the functionality and performance of the application."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Develop Backend API with Next.js",
+        "description": "Create the backend API using Next.js route handlers or tRPC.",
+        "details": "Set up a Next.js application with route handlers for API endpoints. Implement basic endpoints for race management and data retrieval.",
+        "testStrategy": "Test API endpoints using Postman or similar tools to ensure correct responses and error handling.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Next.js Application",
+            "description": "Set up a new Next.js application to serve as the foundation for the backend API.",
+            "dependencies": [],
+            "details": "Use the Next.js CLI to create a new application. Ensure the environment is set up with Node.js and npm or yarn.",
+            "status": "pending",
+            "testStrategy": "Verify the application starts successfully and the default page loads in a browser."
+          },
+          {
+            "id": 2,
+            "title": "Configure TypeScript Support",
+            "description": "Add TypeScript support to the Next.js application for type safety and better development experience.",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "Install TypeScript and necessary type definitions. Rename files to .ts or .tsx and configure tsconfig.json.",
+            "status": "pending",
+            "testStrategy": "Ensure the application compiles without errors and type checking is active."
+          },
+          {
+            "id": 3,
+            "title": "Set Up Basic API Route Structure",
+            "description": "Create the basic folder structure for API routes in the Next.js application.",
+            "dependencies": [
+              "8.2"
+            ],
+            "details": "Inside the 'pages/api' directory, create subdirectories for different API resources such as 'races' and 'data'.",
+            "status": "pending",
+            "testStrategy": "Check that the folder structure is correctly set up and accessible."
+          },
+          {
+            "id": 4,
+            "title": "Implement Race Management Endpoints",
+            "description": "Develop API endpoints for managing races, including creation, updating, and deletion.",
+            "dependencies": [
+              "8.3"
+            ],
+            "details": "Create route handlers in the 'pages/api/races' directory. Implement POST, PUT, and DELETE methods for race management.",
+            "status": "pending",
+            "testStrategy": "Use Postman to test each endpoint for correct functionality and error handling."
+          },
+          {
+            "id": 5,
+            "title": "Implement Data Retrieval Endpoints",
+            "description": "Develop API endpoints for retrieving race data.",
+            "dependencies": [
+              "8.3"
+            ],
+            "details": "Create GET route handlers in the 'pages/api/data' directory to fetch race data.",
+            "status": "pending",
+            "testStrategy": "Test data retrieval endpoints using Postman to ensure data is returned correctly."
+          },
+          {
+            "id": 6,
+            "title": "Integrate tRPC for Type-Safe API Calls",
+            "description": "Set up tRPC to enable type-safe API calls within the Next.js application.",
+            "dependencies": [
+              "8.2",
+              "8.4",
+              "8.5"
+            ],
+            "details": "Install tRPC and configure it in the Next.js application. Define procedures for existing endpoints.",
+            "status": "pending",
+            "testStrategy": "Verify type safety by checking for type errors during API calls in the development environment."
+          },
+          {
+            "id": 7,
+            "title": "Implement Authentication Middleware",
+            "description": "Add middleware to handle authentication for API endpoints.",
+            "dependencies": [
+              "8.4",
+              "8.5"
+            ],
+            "details": "Create middleware functions to check authentication tokens and apply them to relevant API routes.",
+            "status": "pending",
+            "testStrategy": "Test with valid and invalid tokens to ensure proper access control."
+          },
+          {
+            "id": 8,
+            "title": "Set Up Environment Variables",
+            "description": "Configure environment variables for sensitive data and configuration settings.",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "Use a .env file to store environment variables and access them using process.env in the application.",
+            "status": "pending",
+            "testStrategy": "Ensure sensitive data is not hardcoded and variables are accessible in the application."
+          },
+          {
+            "id": 9,
+            "title": "Implement Error Handling",
+            "description": "Add comprehensive error handling to API endpoints to manage and log errors effectively.",
+            "dependencies": [
+              "8.4",
+              "8.5",
+              "8.7"
+            ],
+            "details": "Use try-catch blocks and error logging libraries to handle and log errors in API routes.",
+            "status": "pending",
+            "testStrategy": "Simulate errors and verify that they are logged and handled gracefully."
+          },
+          {
+            "id": 10,
+            "title": "Deploy Next.js Application",
+            "description": "Deploy the Next.js application to a cloud provider for public access.",
+            "dependencies": [
+              "8.6",
+              "8.8",
+              "8.9"
+            ],
+            "details": "Choose a cloud provider like Vercel or AWS, configure deployment settings, and deploy the application.",
+            "status": "pending",
+            "testStrategy": "Access the deployed application and test all API endpoints to ensure they function as expected."
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Database with PostgreSQL",
+        "description": "Set up the database using PostgreSQL for production and SQLite for MVP.",
+        "details": "Configure a PostgreSQL database using Supabase for production. Use SQLite for local development and testing. Define schema for race data and user management.",
+        "testStrategy": "Test database operations by performing CRUD operations and verifying data integrity.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Develop Real-time Features with WebSockets",
+        "description": "Implement real-time features using WebSockets for live race updates.",
+        "details": "Use WebSockets or a service like Ably/Pusher to provide real-time updates during races. Ensure low latency and reliable connections.",
+        "testStrategy": "Test real-time updates by simulating races and verifying timely updates on the client side.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Implement Car Customization via Name Hashing",
+        "description": "Auto-generate car colors based on participant names using hashing.",
+        "details": "Use a hashing algorithm to map participant names to HSL color values for car customization. Ensure unique and visually distinct colors.",
+        "testStrategy": "Test color generation by hashing a variety of names and verifying color uniqueness and consistency.",
+        "priority": "low",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Develop Dynamic Camera System",
+        "description": "Implement a dynamic camera system for race tracking and photo finishes.",
+        "details": "Create a camera system that dynamically follows the race, provides photo-finish close-ups, and supports slow-motion replays. Use React Three Fiber for implementation.",
+        "testStrategy": "Test camera behavior during races to ensure smooth transitions and accurate tracking.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Create User Authentication and Dashboard",
+        "description": "Develop user authentication and a dashboard for managing races.",
+        "details": "Implement user authentication using a library like Auth0 or Firebase. Create a dashboard for users to manage their races and view results.",
+        "testStrategy": "Test authentication flows and dashboard functionality for usability and security.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Multiple Track Presets",
+        "description": "Develop multiple track presets for varied racing experiences.",
+        "details": "Create additional track presets such as Neon City and Canyon Rally. Use procedural generation for track creation and ensure compatibility with existing race mechanics.",
+        "testStrategy": "Test each track preset for playability and ensure consistent race mechanics across tracks.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Develop Advanced Race Modes",
+        "description": "Implement advanced race modes like Podium, Knockout, and Relay.",
+        "details": "Create additional race modes with specific rules and mechanics. Ensure each mode is distinct and offers a unique racing experience.",
+        "testStrategy": "Test each race mode to ensure correct implementation of rules and mechanics.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Integrate Live Voting and Interaction Features",
+        "description": "Add live voting and interaction features for audience participation.",
+        "details": "Implement a system for live audience voting on race conditions or events. Use WebSockets for real-time interaction and updates.",
+        "testStrategy": "Test live voting features by simulating audience interactions and verifying real-time updates.",
+        "priority": "low",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Develop Comprehensive Documentation",
+        "description": "Create detailed documentation for setup, usage, and fairness verification.",
+        "details": "Write comprehensive documentation covering all aspects of the application, including setup guides, usage instructions, and fairness verification processes.",
+        "testStrategy": "Review documentation for completeness and clarity. Conduct user testing to ensure usability.",
+        "priority": "low",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Implement Security Measures",
+        "description": "Ensure security and privacy measures are in place for data protection.",
+        "details": "Implement input validation, rate limiting, and secure random generation. Ensure API security with authentication and authorization.",
+        "testStrategy": "Conduct security testing including penetration tests and vulnerability assessments.",
+        "priority": "high",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Setup Analytics and Insights",
+        "description": "Implement analytics to track usage, engagement, and performance metrics.",
+        "details": "Use tools like Google Analytics or a custom solution to track key metrics. Ensure data is collected and reported accurately.",
+        "testStrategy": "Verify analytics data accuracy by comparing with expected results and conducting manual checks.",
+        "priority": "low",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Prepare for MVP Launch",
+        "description": "Finalize preparations for the MVP launch including marketing and community engagement.",
+        "details": "Coordinate with marketing teams for content creator outreach and educational market penetration. Set up community channels for feedback and support.",
+        "testStrategy": "Review launch preparations and conduct a soft launch to gather initial feedback.",
+        "priority": "medium",
+        "dependencies": [
+          17
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-22T10:24:46.700Z",
+      "updated": "2025-08-22T10:38:05.747Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
