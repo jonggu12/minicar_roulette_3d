@@ -1,0 +1,928 @@
+# MiniRoulette 3D - Development Guide
+
+## 목차 (Table of Contents)
+
+1. [프로젝트 개요](#프로젝트-개요)
+2. [기술 스택](#기술-스택)
+3. [아키텍처 설계](#아키텍처-설계)
+4. [개발 환경 설정](#개발-환경-설정)
+5. [핵심 컴포넌트 구조](#핵심-컴포넌트-구조)
+6. [개발 가이드라인](#개발-가이드라인)
+7. [성능 최적화](#성능-최적화)
+8. [보안 고려사항](#보안-고려사항)
+9. [테스팅 전략](#테스팅-전략)
+10. [배포 및 운영](#배포-및-운영)
+
+---
+
+## 프로젝트 개요
+
+### Vision Statement
+입력된 이름을 기반으로 미니카를 생성하고, AI가 제어하는 경주를 실행하여 공정한 경주 메커니즘을 통해 승자를 결정하는 3D 레이싱 기반 랜덤 선택 도구
+
+### 핵심 기능
+- **Name Input Parsing**: `name*weight` 형식 지원
+- **3D Racing Simulation**: React Three Fiber + Rapier 물리엔진
+- **Fairness System**: SHA256 Commit/Reveal 프로토콜
+- **OBS Integration**: 투명 배경, 1080p/60fps 지원
+- **Real-time Updates**: WebSocket 기반 라이브 업데이트
+
+---
+
+## 기술 스택
+
+### Frontend Stack
+- **3D Rendering**: React Three Fiber (R3F) + drei helpers
+- **Physics Engine**: Rapier (WASM) 또는 Ammo.js
+- **State Management**: Zustand for client state
+- **UI Framework**: Next.js with Tailwind CSS
+- **Language**: TypeScript
+
+### Backend Stack  
+- **API**: Next.js Route Handlers 또는 tRPC
+- **Database**: PostgreSQL (Supabase) for production, SQLite for MVP
+- **Real-time**: WebSockets/Ably/Pusher
+- **Storage**: Object storage for race recordings
+
+### Development Tools
+- **Task Management**: Task Master AI
+- **Version Control**: Git with branch protection
+- **Code Editor**: VS Code with Claude Code integration
+- **Package Manager**: npm/yarn
+
+---
+
+## 아키텍처 설계
+
+### 전체 시스템 구조
+
+```
+MiniRoulette3D/
+├── frontend/                    # React Three Fiber 3D 애플리케이션
+│   ├── src/
+│   │   ├── components/         # React 컴포넌트
+│   │   │   ├── 3d/            # 3D 렌더링 컴포넌트
+│   │   │   │   ├── Track.tsx   # 트랙 렌더링
+│   │   │   │   ├── Car.tsx     # 차량 모델
+│   │   │   │   └── Camera.tsx  # 카메라 시스템
+│   │   │   ├── ui/            # UI 컴포넌트
+│   │   │   │   ├── NameInput.tsx
+│   │   │   │   ├── RaceInfo.tsx
+│   │   │   │   └── Results.tsx
+│   │   │   └── race/          # 경주 로직
+│   │   │       ├── RaceManager.tsx
+│   │   │       ├── AIController.tsx
+│   │   │       └── Physics.tsx
+│   │   ├── hooks/             # Custom React hooks
+│   │   ├── stores/            # Zustand stores
+│   │   ├── utils/             # 유틸리티 함수
+│   │   └── types/             # TypeScript 타입 정의
+├── backend/                     # Next.js API 서버
+│   ├── pages/api/              # API 엔드포인트
+│   │   ├── races/             # 경주 관련 API
+│   │   ├── seeds/             # 시드 관리
+│   │   └── data/              # 데이터 조회
+│   ├── lib/                    # 백엔드 로직
+│   │   ├── database/          # DB 연결 및 쿼리
+│   │   ├── fairness/          # 공정성 시스템
+│   │   └── auth/              # 인증 시스템
+└── shared/                      # 공유 코드
+    ├── types/                  # 공통 타입 정의
+    ├── utils/                  # 공통 유틸리티
+    └── nameParser.ts           # 이름 파싱 로직
+```
+
+### 데이터 플로우
+
+```
+1. User Input → Name Parser → Validation
+2. Parsed Entries → Seed Generation → SHA256 Hash
+3. Race Setup → Car Generation → Physics Initialization
+4. AI Control → Physics Simulation → Real-time Updates
+5. Race Finish → Results → Seed Reveal
+```
+
+---
+
+## 개발 환경 설정
+
+### Prerequisites
+- Node.js 18+
+- npm 또는 yarn
+- Git
+- VS Code (권장)
+
+### 초기 설정
+
+```bash
+# 프로젝트 클론
+git clone <repository-url>
+cd roulette_3d
+
+# 프론트엔드 설정
+cd frontend
+npm install
+npm start  # 포트 3001에서 실행
+
+# 백엔드 설정 (별도 터미널)
+cd ../backend
+npm install
+npm run dev  # 포트 3000에서 실행
+```
+
+### 환경 변수 설정
+
+`.env` 파일 생성:
+```bash
+# API Keys
+ANTHROPIC_API_KEY=your_anthropic_key
+PERPLEXITY_API_KEY=your_perplexity_key
+OPENAI_API_KEY=your_openai_key
+
+# Database
+DATABASE_URL=your_postgres_url
+
+# Security
+JWT_SECRET=your_jwt_secret
+SALT=your_server_salt
+```
+
+---
+
+## 핵심 컴포넌트 구조
+
+### 1. Name Parser System (`/shared/nameParser.ts`)
+
+```typescript
+interface ParsedEntry {
+  name: string;
+  weight: number;
+}
+
+interface ValidationError {
+  type: 'name_empty' | 'name_too_long' | 'weight_invalid';
+  message: string;
+}
+
+interface NormalizationOptions {
+  method: 'sum_to_one' | 'sum_to_total' | 'max_to_one' | 'none';
+  preserveZeros?: boolean;
+}
+
+// 핵심 함수들
+function parseSingleEntry(input: string): ParsedEntry | null
+function parseNameEntries(entries: string[]): ParsedEntry[]
+function parseNameString(input: string): ParsedEntry[]
+function normalizeWeights(entries: ParsedEntry[], options: NormalizationOptions): ParsedEntry[]
+```
+
+**주요 기능:**
+- 정규표현식 기반 파싱: `/^([^*\s]+(?:\s+[^*\s]+)*)\s*(?:\*\s*(\d+(?:\.\d+)?))?\s*$/`
+- 중복 처리 전략: reject, merge_weights, keep_first, keep_last
+- 가중치 정규화: sum_to_one, sum_to_total, max_to_one
+
+### 2. 3D Race Environment
+
+#### Track Component (`/frontend/src/components/3d/Track.tsx`)
+
+```typescript
+interface TrackProps {
+  type: 'oval' | 'neon_city' | 'canyon_rally';
+  physics?: boolean;
+}
+
+const Track: React.FC<TrackProps> = ({ type, physics = true }) => {
+  // GLTF 모델 로딩
+  // Rapier 물리 적용
+  // 웨이포인트 시스템 설정
+}
+```
+
+#### Car Component (`/frontend/src/components/3d/Car.tsx`)
+
+```typescript
+interface CarProps {
+  name: string;
+  color: string;  // HSL 해싱으로 생성
+  position: [number, number, number];
+  aiController: AIController;
+}
+
+const Car: React.FC<CarProps> = ({ name, color, position, aiController }) => {
+  // 차량 모델 렌더링
+  // 물리 속성 설정
+  // AI 제어 로직 연결
+}
+```
+
+### 3. AI Controller System
+
+```typescript
+interface AIController {
+  waypoints: Vector3[];
+  currentTarget: number;
+  speed: number;
+  maxSpeed: number;
+  acceleration: number;
+  
+  // PID 컨트롤러 파라미터
+  pidP: number;
+  pidI: number;  
+  pidD: number;
+}
+
+class AIRacingController {
+  update(deltaTime: number, carPosition: Vector3, carRotation: Quaternion): {
+    steering: number;
+    throttle: number;
+    brake: number;
+  }
+  
+  // 웨이포인트 추적
+  private calculateSteering(position: Vector3, target: Vector3): number
+  
+  // 속도 제어
+  private calculateThrottle(currentSpeed: number, targetSpeed: number): number
+}
+```
+
+### 4. Fairness System
+
+#### Seed Management (`/backend/lib/fairness/seedManager.ts`)
+
+```typescript
+interface RaceSeed {
+  serverSalt: string;
+  entrants: string[];
+  timestamp: number;
+  randomValue: string;
+}
+
+interface CommitRevealSystem {
+  generateSeed(entrants: string[]): RaceSeed;
+  createCommitHash(seed: RaceSeed): string;
+  revealSeed(commitHash: string): RaceSeed | null;
+  verifySeed(seed: RaceSeed, commitHash: string): boolean;
+}
+```
+
+**구현 세부사항:**
+- SHA256 해싱: `SHA256(serverSalt + JSON.stringify(entrants) + timestamp)`
+- 커밋 저장: 데이터베이스 또는 블록체인
+- 시드 공개: 경주 완료 후 자동 실행
+
+---
+
+## 개발 가이드라인
+
+### Code Style & Conventions
+
+#### TypeScript 컨벤션
+```typescript
+// 인터페이스: PascalCase
+interface RaceConfiguration {
+  mode: RaceMode;
+  trackType: TrackType;
+  maxCars: number;
+}
+
+// 컴포넌트: PascalCase + 명확한 Props 타입
+const RaceTrack: React.FC<RaceTrackProps> = ({ configuration }) => {
+  // 컴포넌트 로직
+}
+
+// 훅: camelCase + use 접두사
+const useRaceSimulation = (configuration: RaceConfiguration) => {
+  // 커스텀 훅 로직
+}
+
+// 상수: UPPER_SNAKE_CASE
+const MAX_CARS_PER_RACE = 64;
+const DEFAULT_PHYSICS_SETTINGS = {
+  gravity: -9.81,
+  friction: 0.7
+} as const;
+```
+
+#### Component Structure
+```typescript
+// 1. Imports
+import React, { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+
+// 2. Types & Interfaces
+interface ComponentProps {
+  // props 정의
+}
+
+// 3. Constants
+const COMPONENT_CONSTANTS = {
+  // 상수 정의
+};
+
+// 4. Component Implementation
+const Component: React.FC<ComponentProps> = ({ prop1, prop2 }) => {
+  // 5. State & Hooks
+  const [state, setState] = useState();
+  const customHook = useCustomHook();
+  
+  // 6. Computed Values
+  const computedValue = useMemo(() => {
+    // 계산 로직
+  }, [dependencies]);
+  
+  // 7. Effects
+  useEffect(() => {
+    // 사이드 이펙트
+  }, [dependencies]);
+  
+  // 8. Event Handlers
+  const handleEvent = useCallback(() => {
+    // 이벤트 처리
+  }, [dependencies]);
+  
+  // 9. Render
+  return (
+    // JSX
+  );
+};
+
+export default Component;
+```
+
+### Performance Best Practices
+
+#### 3D Rendering 최적화
+```typescript
+// 1. 인스턴싱 사용
+const Cars = ({ cars }) => {
+  return (
+    <instancedMesh ref={meshRef} args={[null, null, cars.length]}>
+      <carGeometry />
+      <meshStandardMaterial />
+    </instancedMesh>
+  );
+};
+
+// 2. LOD (Level of Detail) 구현
+const CarLOD = ({ distance }) => {
+  const geometry = useMemo(() => {
+    if (distance < 50) return highDetailGeometry;
+    if (distance < 100) return mediumDetailGeometry;
+    return lowDetailGeometry;
+  }, [distance]);
+  
+  return <mesh geometry={geometry} />;
+};
+
+// 3. 불필요한 리렌더링 방지
+const MemoizedCar = React.memo(Car, (prevProps, nextProps) => {
+  return prevProps.position === nextProps.position &&
+         prevProps.rotation === nextProps.rotation;
+});
+```
+
+#### State Management 최적화
+```typescript
+// Zustand Store 구조
+interface RaceStore {
+  // State
+  cars: Car[];
+  raceStatus: RaceStatus;
+  currentLap: number;
+  
+  // Actions
+  updateCarPosition: (carId: string, position: Vector3) => void;
+  setRaceStatus: (status: RaceStatus) => void;
+  
+  // Selectors (computed values)
+  leaderboard: Car[];
+  raceProgress: number;
+}
+
+// Store 분리 (도메인별)
+const useRaceStore = create<RaceStore>((set, get) => ({
+  // 경주 관련 상태
+}));
+
+const useUIStore = create<UIStore>((set, get) => ({
+  // UI 관련 상태
+}));
+```
+
+### Error Handling
+
+#### API Error Handling
+```typescript
+// API 응답 타입
+interface APIResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+}
+
+// Error Handler
+class APIError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
+
+// 사용 예시
+const handleRaceStart = async () => {
+  try {
+    const response = await startRace(raceConfig);
+    if (!response.success) {
+      throw new APIError(
+        response.error.code,
+        response.error.message,
+        response.error.details
+      );
+    }
+    // 성공 로직
+  } catch (error) {
+    if (error instanceof APIError) {
+      // API 에러 처리
+      showErrorMessage(error.message);
+    } else {
+      // 일반 에러 처리
+      console.error('Unexpected error:', error);
+    }
+  }
+};
+```
+
+---
+
+## 성능 최적화
+
+### 3D 렌더링 최적화
+
+#### 1. 렌더링 파이프라인
+```typescript
+// 동적 해상도 조정
+const DynamicResolution = () => {
+  const { viewport, camera } = useThree();
+  const [pixelRatio, setPixelRatio] = useState(1);
+  
+  useFrame(() => {
+    const fps = performance.now();
+    if (fps < 30 && pixelRatio > 0.5) {
+      setPixelRatio(prev => prev * 0.9);
+    } else if (fps > 50 && pixelRatio < 1) {
+      setPixelRatio(prev => Math.min(prev * 1.1, 1));
+    }
+  });
+  
+  useEffect(() => {
+    renderer.setPixelRatio(pixelRatio);
+  }, [pixelRatio]);
+};
+```
+
+#### 2. 메모리 관리
+```typescript
+// Texture Atlas 사용
+const useTextureAtlas = (texturePaths: string[]) => {
+  const atlas = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    // 텍스처들을 하나의 아틀라스로 합성
+    return new Texture(canvas);
+  }, [texturePaths]);
+  
+  useEffect(() => {
+    return () => {
+      atlas.dispose(); // 메모리 해제
+    };
+  }, [atlas]);
+  
+  return atlas;
+};
+
+// Geometry 재사용
+const SharedGeometry = {
+  car: new BoxGeometry(1, 0.5, 2),
+  wheel: new CylinderGeometry(0.3, 0.3, 0.2),
+  track: new PlaneGeometry(100, 100)
+};
+```
+
+### 물리 시뮬레이션 최적화
+
+```typescript
+// 물리 계산 빈도 조절
+const PhysicsOptimizer = () => {
+  const { step } = useRapier();
+  
+  useFrame((state, delta) => {
+    // 고정 타임스텝으로 물리 계산
+    const fixedTimeStep = 1/60;
+    const maxSubSteps = 5;
+    
+    step(Math.min(delta, fixedTimeStep * maxSubSteps));
+  });
+};
+
+// 충돌 감지 최적화
+const OptimizedCollision = () => {
+  // Broad Phase: AABB 박스로 빠른 필터링
+  // Narrow Phase: 정확한 충돌 감지
+  const checkCollision = (carA: Car, carB: Car) => {
+    // AABB 체크 먼저
+    if (!aabbIntersect(carA.boundingBox, carB.boundingBox)) {
+      return false;
+    }
+    
+    // 세밀한 충돌 감지
+    return detailedCollisionCheck(carA, carB);
+  };
+};
+```
+
+---
+
+## 보안 고려사항
+
+### 1. Input Validation
+
+```typescript
+// 이름 입력 검증
+const validateNameInput = (input: string): ValidationResult => {
+  const errors: ValidationError[] = [];
+  
+  // 길이 검증
+  if (input.length > MAX_NAME_LENGTH) {
+    errors.push({
+      type: 'name_too_long',
+      message: `Name must be less than ${MAX_NAME_LENGTH} characters`
+    });
+  }
+  
+  // 특수 문자 검증
+  const forbiddenChars = /[<>'"&]/g;
+  if (forbiddenChars.test(input)) {
+    errors.push({
+      type: 'invalid_characters',
+      message: 'Name contains forbidden characters'
+    });
+  }
+  
+  // SQL 인젝션 방지
+  const sqlPatterns = /(\bSELECT\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b)/i;
+  if (sqlPatterns.test(input)) {
+    errors.push({
+      type: 'security_violation',
+      message: 'Input contains potentially malicious content'
+    });
+  }
+  
+  return { valid: errors.length === 0, errors };
+};
+```
+
+### 2. API Security
+
+```typescript
+// Rate Limiting
+const rateLimit = {
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 100, // 최대 100 요청
+  message: 'Too many requests, please try again later.'
+};
+
+// JWT Token Validation
+const validateToken = (token: string): { valid: boolean; userId?: string } => {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return { valid: true, userId: decoded.userId };
+  } catch (error) {
+    return { valid: false };
+  }
+};
+
+// CORS 설정
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+```
+
+### 3. Seed Security
+
+```typescript
+// 암호학적으로 안전한 랜덤 생성
+const generateSecureRandom = (): string => {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+// 시드 해싱
+const hashSeed = (seed: RaceSeed): string => {
+  const seedString = JSON.stringify({
+    serverSalt: seed.serverSalt,
+    entrants: seed.entrants,
+    timestamp: seed.timestamp,
+    randomValue: seed.randomValue
+  });
+  
+  return crypto.createHash('sha256').update(seedString).digest('hex');
+};
+```
+
+---
+
+## 테스팅 전략
+
+### 1. 단위 테스트 (Jest + Testing Library)
+
+```typescript
+// 이름 파서 테스트
+describe('NameParser', () => {
+  test('should parse single name without weight', () => {
+    const result = parseSingleEntry('John');
+    expect(result).toEqual({ name: 'John', weight: 1 });
+  });
+  
+  test('should parse name with weight', () => {
+    const result = parseSingleEntry('John*3');
+    expect(result).toEqual({ name: 'John', weight: 3 });
+  });
+  
+  test('should handle invalid input', () => {
+    const result = parseSingleEntry('');
+    expect(result).toBeNull();
+  });
+});
+
+// React 컴포넌트 테스트
+describe('RaceTrack', () => {
+  test('should render track with correct props', () => {
+    render(<RaceTrack type="oval" physics={true} />);
+    // 렌더링 검증
+  });
+});
+```
+
+### 2. 통합 테스트
+
+```typescript
+// API 통합 테스트
+describe('Race API', () => {
+  test('should create race with valid input', async () => {
+    const raceData = {
+      entrants: ['John*3', 'Jane', 'Bob*2'],
+      trackType: 'oval',
+      mode: 'sprint'
+    };
+    
+    const response = await request(app)
+      .post('/api/races')
+      .send(raceData)
+      .expect(200);
+    
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.raceId).toBeDefined();
+  });
+});
+```
+
+### 3. 3D 렌더링 테스트
+
+```typescript
+// 3D Scene 테스트
+describe('3D Scene', () => {
+  test('should render cars at correct positions', () => {
+    const cars = [
+      { name: 'Car1', position: [0, 0, 0] },
+      { name: 'Car2', position: [5, 0, 0] }
+    ];
+    
+    const { scene } = render3D(<RaceScene cars={cars} />);
+    
+    const carMeshes = scene.children.filter(child => child.name === 'car');
+    expect(carMeshes).toHaveLength(2);
+    expect(carMeshes[0].position.x).toBe(0);
+    expect(carMeshes[1].position.x).toBe(5);
+  });
+});
+```
+
+### 4. 성능 테스트
+
+```typescript
+// 렌더링 성능 테스트
+describe('Performance', () => {
+  test('should maintain 60fps with 64 cars', async () => {
+    const cars = Array.from({ length: 64 }, (_, i) => ({
+      name: `Car${i}`,
+      position: [i * 2, 0, 0]
+    }));
+    
+    const { fps } = await measurePerformance(() => {
+      render3D(<RaceScene cars={cars} />);
+    });
+    
+    expect(fps).toBeGreaterThanOrEqual(60);
+  });
+});
+```
+
+---
+
+## 배포 및 운영
+
+### 1. 배포 환경
+
+#### Development
+```yaml
+# docker-compose.dev.yml
+version: '3.8'
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:3000
+    volumes:
+      - ./frontend:/app
+      
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgres://user:pass@db:5432/minirace_dev
+    depends_on:
+      - db
+      
+  db:
+    image: postgres:14
+    environment:
+      - POSTGRES_DB=minirace_dev
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+```
+
+#### Production (Vercel + Supabase)
+```json
+// vercel.json
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/next",
+      "config": {
+        "outputDirectory": "frontend/.next"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "DATABASE_URL": "@database_url",
+    "JWT_SECRET": "@jwt_secret"
+  }
+}
+```
+
+### 2. 모니터링 및 로깅
+
+```typescript
+// 로깅 시스템
+interface LogEntry {
+  level: 'info' | 'warn' | 'error';
+  timestamp: string;
+  message: string;
+  context?: any;
+}
+
+class Logger {
+  static info(message: string, context?: any) {
+    const entry: LogEntry = {
+      level: 'info',
+      timestamp: new Date().toISOString(),
+      message,
+      context
+    };
+    
+    console.log(JSON.stringify(entry));
+    // 프로덕션에서는 외부 로깅 서비스로 전송
+  }
+  
+  static error(error: Error, context?: any) {
+    const entry: LogEntry = {
+      level: 'error',
+      timestamp: new Date().toISOString(),
+      message: error.message,
+      context: {
+        stack: error.stack,
+        ...context
+      }
+    };
+    
+    console.error(JSON.stringify(entry));
+    // 에러 모니터링 서비스 (Sentry 등)로 전송
+  }
+}
+
+// 성능 모니터링
+const performanceMonitor = {
+  trackRacePerformance: (raceId: string, metrics: {
+    fps: number;
+    memoryUsage: number;
+    renderTime: number;
+  }) => {
+    // 성능 메트릭 수집
+    Logger.info('Race performance metrics', { raceId, metrics });
+  }
+};
+```
+
+### 3. CI/CD 파이프라인
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm run test
+      - run: npm run build
+      
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: vercel/action@v1
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+```
+
+---
+
+## 추가 리소스
+
+### 개발 도구 및 확장프로그램
+- **VS Code Extensions**:
+  - Claude Code (AI 어시스턴트)
+  - ES7+ React/Redux Snippets
+  - Auto Rename Tag
+  - Prettier - Code Formatter
+  - GitLens
+
+### 학습 리소스
+- **React Three Fiber**: https://docs.pmnd.rs/react-three-fiber
+- **Rapier Physics**: https://rapier.rs/docs/
+- **Next.js**: https://nextjs.org/docs
+- **Tailwind CSS**: https://tailwindcss.com/docs
+
+### 커뮤니티 및 지원
+- **GitHub Issues**: 버그 리포트 및 기능 요청
+- **Discord**: 실시간 개발자 소통
+- **Documentation**: 상세한 API 문서 및 튜토리얼
+
+---
+
+*이 문서는 MiniRoulette 3D 프로젝트의 개발 지식과 가이드라인을 포괄적으로 다루며, 팀 전체가 일관된 개발 방식을 유지할 수 있도록 돕습니다.*
