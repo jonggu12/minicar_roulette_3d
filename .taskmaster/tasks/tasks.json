@@ -9,7 +9,7 @@
         "testStrategy": "Verify repository accessibility and correct directory structure.",
         "priority": "medium",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -53,7 +53,7 @@
             "description": "Make the initial commit with the basic project setup.",
             "dependencies": [],
             "details": "Stage all files using 'git add .' and commit them with a message like 'Initial project setup'. Ensure all necessary files are included.",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "Run 'git log' to verify the commit is recorded with the correct message."
           },
           {
@@ -62,7 +62,7 @@
             "description": "Link the local repository to a remote repository on a platform like GitHub.",
             "dependencies": [],
             "details": "Create a new repository on GitHub. Use 'git remote add origin <repository-url>' to link the local repo to the remote. Push the initial commit using 'git push -u origin main'.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Check the remote repository on GitHub to ensure the initial commit and files are present."
           },
           {
@@ -71,7 +71,7 @@
             "description": "Set up branch protection rules to ensure code quality and prevent accidental changes to the main branch.",
             "dependencies": [],
             "details": "In the GitHub repository settings, navigate to 'Branches' and configure protection rules for the main branch. Require pull request reviews and status checks before merging.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Attempt to push directly to the main branch to verify that the protection rules are enforced."
           },
           {
@@ -80,7 +80,7 @@
             "description": "Document the steps taken to set up the repository for future reference.",
             "dependencies": [],
             "details": "Update the README or create a separate documentation file detailing the repository setup process, including commands used and configurations made.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Review the documentation for completeness and accuracy. Ensure it can be followed to replicate the setup."
           }
         ]
@@ -95,8 +95,62 @@
         "dependencies": [
           1
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define TypeScript Type Definitions",
+            "description": "Create TypeScript type definitions for name and weight inputs to ensure type safety.",
+            "dependencies": [],
+            "details": "Define a TypeScript interface or type alias for the input format, such as 'name*weight'. Ensure that the type definitions cover both the name and weight components, and consider optional weights.\n<info added on 2025-08-23T08:47:53.679Z>\nImplementation completed: Created comprehensive TypeScript type definitions in shared/types/nameParser.ts with interfaces for ParticipantEntry, ParsedParticipants, ParsingOptions, ValidationError, and ParsingResult. Documentation created at .taskmaster/docs/task-explanations/task-2.1-typescript-definitions.md explaining the implementation in plain language for non-developers.\n</info added on 2025-08-23T08:47:53.679Z>",
+            "status": "done",
+            "testStrategy": "Verify type definitions by using them in a sample function and checking for type errors during compilation."
+          },
+          {
+            "id": 2,
+            "title": "Implement Parsing Function with Regular Expressions",
+            "description": "Develop a function to parse input strings using regular expressions to extract names and weights.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Use regular expressions to identify and extract the 'name' and 'weight' components from input strings. Ensure the function can handle inputs with and without weights, and return a structured object based on the defined TypeScript types.\n<info added on 2025-08-23T09:55:56.366Z>\nImplementation completed: Created comprehensive parsing functions in shared/nameParser.ts with regex patterns for name*weight format. Implemented parseSingleInput(), parseNameInputs(), parseNameString(), and normalizeWeights() functions with full error handling, duplicate management, and edge case coverage. Supports multiple input formats and separators.\n</info added on 2025-08-23T09:55:56.366Z>",
+            "status": "done",
+            "testStrategy": "Write unit tests to check the parsing function against various input scenarios, including valid and invalid formats."
+          },
+          {
+            "id": 3,
+            "title": "Validate Input Format and Handle Errors",
+            "description": "Add validation logic to ensure inputs conform to the expected format and handle errors gracefully.",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Implement validation checks within the parsing function to confirm that inputs match the 'name*weight' format. Throw descriptive errors for invalid inputs and ensure the function handles these errors without crashing.\n<info added on 2025-08-23T10:02:22.236Z>\nEnhanced validation includes comprehensive input checks with security measures, improved error messages offering helpful suggestions, and enforcement of length and content limits. Developed a utility file, validationHelpers.ts, to facilitate batch validation and generate error suggestions. Strengthened defenses against malicious inputs and ensured user-friendly error guidance.\n</info added on 2025-08-23T10:02:22.236Z>",
+            "status": "done",
+            "testStrategy": "Test validation logic by providing malformed inputs and verifying that appropriate errors are thrown."
+          },
+          {
+            "id": 4,
+            "title": "Implement Duplicate Handling Logic",
+            "description": "Develop logic to identify and handle duplicate name entries, ensuring unique names in the parsed output.",
+            "dependencies": [
+              "2.3"
+            ],
+            "details": "After parsing and validating inputs, check for duplicate names in the parsed data. Implement a strategy to handle duplicates, such as merging weights or discarding duplicates, based on project requirements.\n<info added on 2025-08-23T10:08:16.437Z>\nEnhanced the existing implementation with additional utilities in duplicateHandling.ts, including duplicate detection, resolution suggestions, merge functions, and statistics tracking. Added default case handling and improved error robustness. The system now supports 'merge', 'replace', and 'error' strategies for duplicate names.\n</info added on 2025-08-23T10:08:16.437Z>",
+            "status": "done",
+            "testStrategy": "Create tests with duplicate name entries to ensure the handling logic works as expected and duplicates are managed correctly."
+          },
+          {
+            "id": 5,
+            "title": "Normalize Weights",
+            "description": "Add functionality to normalize weights across all parsed entries to ensure they sum to a consistent value.",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Implement a normalization function that adjusts weights so that the total weight sums to a predefined value, such as 1 or 100. This function should be called after parsing and duplicate handling.\n<info added on 2025-08-23T10:11:33.429Z>\nEnhanced the existing `normalizeWeights` function and created specialized racing normalization utilities in `weightNormalization.ts`. Added integer-based car count normalization using the largest remainder method, probability calculations, and integrated these with the main parsing flow. The system now supports both mathematical normalization (decimal weights) and racing-specific normalization (integer car counts).\n</info added on 2025-08-23T10:11:33.429Z>",
+            "status": "done",
+            "testStrategy": "Test the normalization process by providing inputs with varying weights and verifying that the output weights are correctly normalized."
+          }
+        ]
       },
       {
         "id": 3,
@@ -108,15 +162,15 @@
         "dependencies": [
           2
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
             "title": "Set Up React Three Fiber Environment",
             "description": "Initialize a React project and configure React Three Fiber for 3D rendering.",
             "dependencies": [],
-            "details": "Create a new React application using Create React App or a similar tool. Install React Three Fiber and set up a basic scene with a camera and lighting to ensure the 3D environment is ready for further development.",
-            "status": "pending",
+            "details": "Create a new React application using Create React App or a similar tool. Install React Three Fiber and set up a basic scene with a camera and lighting to ensure the 3D environment is ready for further development.\n<info added on 2025-08-23T12:11:32.725Z>\nReact Three Fiber environment setup completed successfully. Created a Vite-based React TypeScript project with @react-three/fiber, @react-three/drei, and three.js dependencies. Implemented basic 3D scene with lighting, camera controls, animated test objects (cube, sphere, cylinder), and ground plane. Development server running at localhost:3000 with working 3D environment ready for race mechanics implementation.\n</info added on 2025-08-23T12:11:32.725Z>",
+            "status": "done",
             "testStrategy": "Render a simple 3D object to verify the setup."
           },
           {
@@ -126,8 +180,8 @@
             "dependencies": [
               "3.1"
             ],
-            "details": "Install Rapier and integrate it with the React Three Fiber setup. Configure basic physics properties such as gravity and collision detection to ensure the environment is ready for dynamic interactions.",
-            "status": "pending",
+            "details": "Install Rapier and integrate it with the React Three Fiber setup. Configure basic physics properties such as gravity and collision detection to ensure the environment is ready for dynamic interactions.\n<info added on 2025-08-23T12:17:21.779Z>\nRapier physics engine integration completed successfully. Installed @react-three/rapier and @dimforge/rapier3d-compat packages. Set up physics world with gravity (-9.81), enabled debug mode for visualization. Created physics-enabled objects (cube, sphere, cylinder) that fall and collide with static ground plane. Implemented RigidBody components with collision detection, restitution values, and proper colliders. Physics simulation is running smoothly at localhost:3000.\n</info added on 2025-08-23T12:17:21.779Z>",
+            "status": "done",
             "testStrategy": "Simulate a basic physics scenario to verify integration."
           },
           {
@@ -137,8 +191,8 @@
             "dependencies": [
               "3.1"
             ],
-            "details": "Use a 3D modeling tool like Blender to design an oval track. Export the model in a format compatible with React Three Fiber, such as GLTF or OBJ, and import it into the project.",
-            "status": "pending",
+            "details": "Use a 3D modeling tool like Blender to design an oval track. Export the model in a format compatible with React Three Fiber, such as GLTF or OBJ, and import it into the project.\n<info added on 2025-08-23T12:23:32.673Z>\nOval track model design completed successfully. Created a programmatic Track component using Three.js geometry instead of external 3D modeling software. Implemented an oval track with configurable dimensions (inner/outer radius, track width, height), proper physics barriers (red outer, blue inner), track surface with realistic materials, start/finish line markings, and center lane divider. Track integrated into the Scene with test car-shaped objects for collision testing. Camera repositioned for optimal track viewing.\n</info added on 2025-08-23T12:23:32.673Z>",
+            "status": "done",
             "testStrategy": "Render the track in the scene to ensure correct loading and positioning."
           },
           {
@@ -150,7 +204,7 @@
               "3.3"
             ],
             "details": "Use Rapier to add collision detection and friction properties to the track surface. Ensure that the track can interact with dynamic objects like AI cars.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test collision and friction by simulating a simple object moving on the track."
           },
           {
@@ -161,7 +215,7 @@
               "3.1"
             ],
             "details": "Design a basic car model using a 3D modeling tool. Ensure the model is optimized for performance and export it in a compatible format for React Three Fiber.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Render the car model in the scene to verify appearance and scale."
           },
           {
@@ -172,8 +226,8 @@
               "3.2",
               "3.5"
             ],
-            "details": "Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.",
-            "status": "pending",
+            "details": "Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.\n<info added on 2025-08-24T05:08:31.850Z>\nPhysicsCar component completed: Realistic physics engine implementation finished\n- Added physical properties such as engine power, max speed, rotation speed, and braking force\n- Implemented keyboard controls (WASD + Space) and AI auto-control\n- Clarified car front direction with arrows, grille, and headlights\n- Adjusted forward direction vector based on the X-axis\n- Prepared for testing with cars positioned at the starting line on TestTrack\n\nThe physics engine is fully operational, and both keyboard and AI controls are implemented and ready for testing.\n</info added on 2025-08-24T05:08:31.850Z>",
+            "status": "in-progress",
             "testStrategy": "Simulate car movement and collision with the track to verify physics behavior."
           },
           {
@@ -789,7 +843,7 @@
     ],
     "metadata": {
       "created": "2025-08-22T10:24:46.700Z",
-      "updated": "2025-08-23T08:27:46.271Z",
+      "updated": "2025-08-24T04:57:38.556Z",
       "description": "Tasks for master context"
     }
   }
