@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Physics, RapierRigidBody} from '@react-three/rapier'
 import { Mesh } from 'three'
 import PhysicsTrack from './PhysicsTrack'
-import TestTrack from './TestTrack'
+import TestTrack from '../../Archive/TestTrack'
 
 const USE_TEST_BALL = false
 

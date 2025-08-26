@@ -1,0 +1,11 @@
+# Task ID: 11
+# Title: Implement Car Customization via Name Hashing
+# Status: pending
+# Dependencies: 3
+# Priority: low
+# Description: Auto-generate car colors based on participant names using hashing.
+# Details:
+Use a hashing algorithm to map participant names to HSL color values for car customization. Ensure unique and visually distinct colors.
+
+# Test Strategy:
+Test color generation by hashing a variety of names and verifying color uniqueness and consistency.

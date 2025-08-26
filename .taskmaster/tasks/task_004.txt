@@ -1,0 +1,61 @@
+# Task ID: 4
+# Title: Create Seed Commit/Reveal System
+# Status: pending
+# Dependencies: 3
+# Priority: high
+# Description: Implement the seed commit/reveal system for fairness verification.
+# Details:
+Develop a system to generate a SHA256 hash of the seed (serverSalt + entrants + timestamp) before the race. Reveal the original seed after the race for verification purposes.
+
+# Test Strategy:
+Verify hash generation and seed reveal process through unit tests and manual verification.
+
+# Subtasks:
+## 1. Define Seed Structure [pending]
+### Dependencies: None
+### Description: Define the structure of the seed, which includes serverSalt, entrants, and timestamp.
+### Details:
+Create a data structure to hold the serverSalt, entrants, and timestamp. Ensure that this structure can be easily serialized for hash generation.
+
+## 2. Implement SHA256 Hash Generation [pending]
+### Dependencies: 4.1
+### Description: Develop a function to generate a SHA256 hash from the seed.
+### Details:
+Use a cryptographic library to implement a function that takes the seed structure, serializes it, and returns a SHA256 hash.
+
+## 3. Store Hash Before Race [pending]
+### Dependencies: 4.2
+### Description: Store the generated hash securely before the race begins.
+### Details:
+Implement a mechanism to store the hash in a secure and immutable manner, such as in a database or a blockchain.
+
+## 4. Design Seed Reveal Mechanism [pending]
+### Dependencies: 4.1
+### Description: Design a mechanism to reveal the original seed after the race.
+### Details:
+Create a process to securely retrieve and display the original seed to participants for verification purposes.
+
+## 5. Implement Seed Reveal Functionality [pending]
+### Dependencies: 4.4
+### Description: Implement the functionality to reveal the seed after the race.
+### Details:
+Develop the code to execute the seed reveal process, ensuring it is triggered at the correct time and securely displays the seed.
+
+## 6. Integrate with Race Management System [pending]
+### Dependencies: 4.3, 4.5
+### Description: Integrate the commit/reveal system with the existing race management system.
+### Details:
+Ensure that the commit/reveal system is seamlessly integrated with the race management system, triggering hash storage and seed reveal at appropriate times.
+
+## 7. Develop User Interface for Verification [pending]
+### Dependencies: 4.5
+### Description: Create a user interface to allow participants to verify the seed and hash.
+### Details:
+Design and implement a UI component that displays the seed and hash, allowing users to verify the fairness of the race.
+
+## 8. Conduct Security Audit [pending]
+### Dependencies: 4.6, 4.7
+### Description: Perform a security audit of the commit/reveal system to ensure data integrity and security.
+### Details:
+Review the entire system for potential vulnerabilities, focusing on data storage, hash generation, and seed reveal processes.
+

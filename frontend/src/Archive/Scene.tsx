@@ -2,7 +2,7 @@ import React, { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Mesh } from 'three'
 import { RigidBody, CuboidCollider } from '@react-three/rapier'
-import Track from './Track'
+import Track from '../../Archive/Track'
 
 const Scene: React.FC = () => {
   // Reference for animated cube

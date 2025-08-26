@@ -1,7 +1,7 @@
 import React from 'react'
-import { RigidBody, CuboidCollider } from '@react-three/rapier'
+import { RigidBody, CuboidCollider, CylinderCollider, BallCollider } from '@react-three/rapier'
 import * as RAPIER from '@dimforge/rapier3d-compat'
-import PhysicsCar from './PhysicsCar'
+import PhysicsCar from '../components/3d/PhysicsCar'
 
 interface TestTrackProps {
   length?: number
@@ -14,6 +14,14 @@ const TestTrack: React.FC<TestTrackProps> = ({
   width = 6, 
   height = 0.2 
 }) => {
+  // 충돌 핸들러 - 기본적인 충돌 로깅만 (선택적)
+  const handleCarCollision = (carName: string) => (collisionData: any) => {
+    // 개발 환경에서만 충돌 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🚗 ${carName} 충돌: ${collisionData.impactStrength.toFixed(1)}`)
+    }
+  }
+
   // 기본 직선 트랙(단순하고 안정적인 물리)
   const halfL = length / 2
   const halfW = width / 2
@@ -27,15 +35,44 @@ const TestTrack: React.FC<TestTrackProps> = ({
 
   return (
     <group>
-      {/* Test vehicle (basic physics enabled) */}
+      {/* Test vehicle 1 - Player controlled (improved responsiveness) */}
       <PhysicsCar 
         position={[-halfL + 3, groundTopY + 0.2, 0]}
         color="#3fa7ff"
+        name="Player"
         autoControl={false}
-        mass={800}
-        engineForce={3500}
-        brakeForce={4000}
-        steerStrength={800}
+        mass={800} // 동일한 질량 (공정성)
+        engineForce={4200} // 더 반응적인 가속
+        brakeForce={5000}  // 더 강한 브레이킹
+        steerStrength={1000} // 더 민감한 조향
+        maxSpeed={15}      // 최고속도 증가
+        onCollision={handleCarCollision("Player")}
+      />
+
+      {/* Test vehicle 2 - AI controlled */}
+      <PhysicsCar 
+        position={[halfL - 8, groundTopY + 0.2, 1]}
+        color="#ff4757"
+        name="AI"
+        autoControl={true}
+        mass={800} // 동일한 질량 (공정성)
+        engineForce={2000}
+        brakeForce={3000}
+        steerStrength={600}
+        onCollision={handleCarCollision("AI")}
+      />
+
+      {/* Test vehicle 3 - Static target */}
+      <PhysicsCar 
+        position={[0, groundTopY + 0.2, -2]}
+        color="#2ecc71"
+        name="Target"
+        autoControl={true}
+        mass={800} // 동일한 질량 (공정성)
+        engineForce={0} // 움직이지 않음
+        brakeForce={0}
+        steerStrength={0}
+        onCollision={handleCarCollision("Target")}
       />
 
       {/* 바닥(고정) - 두꺼운 콜라이더로 관통/튐 방지 */}
@@ -160,6 +197,78 @@ const TestTrack: React.FC<TestTrackProps> = ({
         <planeGeometry args={[length, 0.08]} />
         <meshStandardMaterial color="#f1c40f" />
       </mesh>
+
+      {/* 충돌 테스트용 장애물 - 트랙 중간 */}
+      <RigidBody
+        type="fixed"
+        position={[5, 0.75, 0]}
+        colliders={false}
+        friction={0.6}
+        restitution={0.3}
+      >
+        {/* 시각 모델 */}
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[1.5, 1.5, 1.5]} />
+          <meshStandardMaterial color="#e67e22" roughness={0.7} metalness={0.1} />
+        </mesh>
+        
+        {/* 물리 콜라이더 */}
+        <CuboidCollider
+          args={[0.75, 0.75, 0.75]}
+          friction={0.6}
+          restitution={0.3}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Average}
+        />
+      </RigidBody>
+
+      {/* 추가 테스트용 원기둥 장애물 */}
+      <RigidBody
+        type="fixed"
+        position={[-8, 0.6, 1.5]}
+        colliders={false}
+        friction={0.8}
+        restitution={0.2}
+      >
+        {/* 시각 모델 */}
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.6, 0.6, 1.2, 16]} />
+          <meshStandardMaterial color="#9b59b6" roughness={0.5} metalness={0.2} />
+        </mesh>
+        
+        {/* 물리 콜라이더 */}
+        <CylinderCollider
+          args={[0.6, 0.6]}
+          friction={0.8}
+          restitution={0.2}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Average}
+        />
+      </RigidBody>
+
+      {/* 구형 장애물 */}
+      <RigidBody
+        type="fixed"
+        position={[10, 0.5, -2]}
+        colliders={false}
+        friction={0.4}
+        restitution={0.7}
+      >
+        {/* 시각 모델 */}
+        <mesh castShadow receiveShadow>
+          <sphereGeometry args={[0.5, 16, 16]} />
+          <meshStandardMaterial color="#e74c3c" roughness={0.3} metalness={0.4} />
+        </mesh>
+        
+        {/* 물리 콜라이더 */}
+        <BallCollider
+          args={[0.5]}
+          friction={0.4}
+          restitution={0.7}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Average}
+        />
+      </RigidBody>
     </group>
   )
 }

@@ -1,0 +1,61 @@
+# Task ID: 21
+# Title: Develop Comprehensive AI System for Minicar Racing
+# Status: pending
+# Dependencies: 3, 14
+# Priority: high
+# Description: Implement an AI system with state machine, raycast sensors, and advanced behaviors for minicar racing.
+# Details:
+Develop an AI system for minicar racing that includes a state machine to manage different racing states such as overtaking, avoiding, cornering, and recovery. Use raycast sensors to detect track boundaries, other cars, and obstacles. Implement advanced behaviors to ensure the AI can handle complex racing scenarios, providing exciting and competitive races. The AI should be deterministic to ensure fairness and reproducibility, allowing for verification of race outcomes. Consider using a combination of physics-based and rule-based approaches to achieve realistic and competitive AI behavior. Integrate the AI system with the existing race mechanics and ensure compatibility with various track presets.
+
+# Test Strategy:
+Conduct extensive simulations to test AI behavior in different racing scenarios, including overtaking, avoiding collisions, and cornering. Verify the determinism of the AI by running identical simulations and ensuring consistent outcomes. Test the AI's interaction with different track presets and race modes to ensure adaptability and fairness. Use logging and debugging tools to analyze AI decision-making processes and refine behaviors as necessary.
+
+# Subtasks:
+## 1. Design AI State Machine Architecture [pending]
+### Dependencies: None
+### Description: Create the core state machine with Racing, Cornering, Overtaking, Avoiding, and Recovery states
+### Details:
+Design and implement a finite state machine with 5 core states: START, RACING (default), CORNERING (curve navigation), OVERTAKING (passing other cars), AVOIDING (collision avoidance), and RECOVER (stuck/spin recovery). Define state transition conditions with priority hierarchy: RECOVER > AVOIDING > OVERTAKING > CORNERING > RACING. Include cooldown mechanisms and minimum state duration to prevent state thrashing.
+
+## 2. Implement Raycast Sensor System [pending]
+### Dependencies: None
+### Description: Create multi-directional raycast sensors for environment detection and collision avoidance
+### Details:
+Implement a raycast sensor system with 5-7 rays: forward (center, ±10°, ±20°) and lateral (±80°) for comprehensive environment sensing. Configure dynamic sensor range based on speed (R = 8 + 0.6*speed, clamped 6-18m). Optimize performance by running sensors at 30-60Hz instead of full physics rate. Include hit detection for other cars, track boundaries, and obstacles with distance and object type information.
+
+## 3. Develop Virtual Lane Offset System [pending]
+### Dependencies: None
+### Description: Implement dynamic lane positioning for overtaking and avoidance maneuvers
+### Details:
+Create a virtual lane offset system that modifies waypoint following by adding perpendicular displacement. Implement smooth offset transitions using easing functions (τ=0.3-0.5s) to prevent sudden lane changes. Support ±0.8m offset for overtaking and ±0.4m for minor avoidance. Include safety checks to ensure adequate clearance before applying offsets and integrate with the state machine for automatic offset management.
+
+## 4. Implement Curvature-Based Speed Control [pending]
+### Dependencies: None
+### Description: Create physics-based speed management system for different track sections
+### Details:
+Implement curvature-based speed control using the formula v_target = sqrt(a_lat_max / κ) where κ is curvature (1/R) and a_lat_max is maximum lateral acceleration (6-8 m/s²). Add curvature information to waypoint data structure and calculate appropriate target speeds for corners. Include progressive braking before corners and acceleration out of corners with smooth speed transitions to prevent abrupt speed changes.
+
+## 5. Create Overtaking Logic System [pending]
+### Dependencies: None
+### Description: Implement intelligent overtaking behavior with safety checks and decision making
+### Details:
+Develop overtaking logic that triggers when front car distance < 5-8m and relative speed advantage exists. Include lateral safety checks using raycast sensors to ensure clear overtaking space. Implement overtaking cooldown (2s) and failure handling (retry limits). Add overtaking completion detection and automatic return to racing line. Ensure overtaking attempts respect track boundaries and other traffic conditions.
+
+## 6. Implement Collision Avoidance System [pending]
+### Dependencies: None
+### Description: Create emergency avoidance behaviors for collision prevention
+### Details:
+Implement two-tier collision avoidance: Comfort Brake (distance 40-80% of sensor range) and Panic Brake (distance <40% of sensor range). Add lateral avoidance with minor lane offset when safe space is available. Include collision prediction algorithms based on relative velocity and trajectory. Implement avoidance state exit conditions with 0.2s minimum clear time before returning to racing state.
+
+## 7. Create Recovery System for Stuck Cars [pending]
+### Dependencies: None
+### Description: Implement automatic recovery system for cars that get stuck or spin out
+### Details:
+Develop recovery state that triggers when car speed < 0.3 m/s for 1.2s+ with heading angle >60° from waypoint direction, or when car is in contact with walls for 1.0s+. Implement recovery actions: throttle cutoff, light braking, yaw correction torque, and limited reverse movement if necessary. Include automatic exit conditions when heading error <15° and speed recovery. Add deterministic recovery behavior to maintain race reproducibility.
+
+## 8. Implement Seed-Based AI Personalization [pending]
+### Dependencies: None
+### Description: Create deterministic AI personality variations while maintaining fairness
+### Details:
+Implement seed-based AI personalization system that generates unique but fair AI parameters for each car. Use hash(carName + globalSeed) to create deterministic variations in aggressiveness (±10%), braking skill (±5%), cornering ability (±10%), and reaction time (±25ms). Ensure all variations stay within acceptable performance bounds to maintain fairness. Include parameter validation and logging for race reproducibility verification.
+

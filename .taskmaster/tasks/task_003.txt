@@ -1,0 +1,116 @@
+# Task ID: 3
+# Title: Develop Basic Race Mechanics
+# Status: in-progress
+# Dependencies: 2
+# Priority: high
+# Description: Implement the core race mechanics with a single oval track and AI-controlled cars.
+# Details:
+Use React Three Fiber for 3D rendering and Rapier for physics. Implement AI-controlled cars with identical parameters and a simple oval track. Ensure consistent physics and fair AI behavior.
+
+# Test Strategy:
+Simulate races to ensure fair AI behavior and consistent physics.
+
+# Subtasks:
+## 1. Set Up React Three Fiber Environment [done]
+### Dependencies: None
+### Description: Initialize a React project and configure React Three Fiber for 3D rendering.
+### Details:
+Create a new React application using Create React App or a similar tool. Install React Three Fiber and set up a basic scene with a camera and lighting to ensure the 3D environment is ready for further development.
+<info added on 2025-08-23T12:11:32.725Z>
+React Three Fiber environment setup completed successfully. Created a Vite-based React TypeScript project with @react-three/fiber, @react-three/drei, and three.js dependencies. Implemented basic 3D scene with lighting, camera controls, animated test objects (cube, sphere, cylinder), and ground plane. Development server running at localhost:3000 with working 3D environment ready for race mechanics implementation.
+</info added on 2025-08-23T12:11:32.725Z>
+
+## 2. Integrate Rapier Physics Engine [done]
+### Dependencies: 3.1
+### Description: Add Rapier physics engine to the project for handling physics simulations.
+### Details:
+Install Rapier and integrate it with the React Three Fiber setup. Configure basic physics properties such as gravity and collision detection to ensure the environment is ready for dynamic interactions.
+<info added on 2025-08-23T12:17:21.779Z>
+Rapier physics engine integration completed successfully. Installed @react-three/rapier and @dimforge/rapier3d-compat packages. Set up physics world with gravity (-9.81), enabled debug mode for visualization. Created physics-enabled objects (cube, sphere, cylinder) that fall and collide with static ground plane. Implemented RigidBody components with collision detection, restitution values, and proper colliders. Physics simulation is running smoothly at localhost:3000.
+</info added on 2025-08-23T12:17:21.779Z>
+
+## 3. Design Oval Track Model [done]
+### Dependencies: 3.1
+### Description: Create a 3D model of a simple oval track for the race.
+### Details:
+Use a 3D modeling tool like Blender to design an oval track. Export the model in a format compatible with React Three Fiber, such as GLTF or OBJ, and import it into the project.
+<info added on 2025-08-23T12:23:32.673Z>
+Oval track model design completed successfully. Created a programmatic Track component using Three.js geometry instead of external 3D modeling software. Implemented an oval track with configurable dimensions (inner/outer radius, track width, height), proper physics barriers (red outer, blue inner), track surface with realistic materials, start/finish line markings, and center lane divider. Track integrated into the Scene with test car-shaped objects for collision testing. Camera repositioned for optimal track viewing.
+</info added on 2025-08-23T12:23:32.673Z>
+
+## 4. Implement Track Physics [done]
+### Dependencies: 3.2, 3.3
+### Description: Apply physics properties to the oval track to enable interaction with AI cars.
+### Details:
+Use Rapier to add collision detection and friction properties to the track surface. Ensure that the track can interact with dynamic objects like AI cars.
+
+## 5. Develop AI Car Model [done]
+### Dependencies: 3.1
+### Description: Create a 3D model for the AI-controlled cars.
+### Details:
+Design a basic car model using a 3D modeling tool. Ensure the model is optimized for performance and export it in a compatible format for React Three Fiber.
+
+## 6. Implement AI Car Physics [in-progress]
+### Dependencies: 3.2, 3.5
+### Description: Apply physics properties to the AI car model to enable realistic movement.
+### Details:
+Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.
+<info added on 2025-08-24T05:08:31.850Z>
+PhysicsCar component completed: Realistic physics engine implementation finished
+- Added physical properties such as engine power, max speed, rotation speed, and braking force
+- Implemented keyboard controls (WASD + Space) and AI auto-control
+- Clarified car front direction with arrows, grille, and headlights
+- Adjusted forward direction vector based on the X-axis
+- Prepared for testing with cars positioned at the starting line on TestTrack
+
+The physics engine is fully operational, and both keyboard and AI controls are implemented and ready for testing.
+</info added on 2025-08-24T05:08:31.850Z>
+
+## 7. Develop Basic AI Behavior [pending]
+### Dependencies: 3.6
+### Description: Implement basic AI logic to control car movement around the track.
+### Details:
+Create a simple AI algorithm that controls car acceleration, steering, and braking to navigate the oval track. Ensure the AI can complete laps consistently.
+
+## 8. Ensure Consistent Physics [pending]
+### Dependencies: 3.4, 3.6
+### Description: Verify and adjust physics settings for consistent behavior across all AI cars.
+### Details:
+Review and fine-tune physics parameters such as friction, mass, and collision response to ensure all AI cars behave consistently and fairly.
+
+## 9. Implement Lap Timing System [pending]
+### Dependencies: 3.7
+### Description: Develop a system to track and display lap times for AI cars.
+### Details:
+Create a timing mechanism that records lap times for each AI car. Display the times on the screen using a simple UI component.
+
+## 10. Create Race Start and Finish Logic [pending]
+### Dependencies: 3.9
+### Description: Implement logic to handle race start, lap counting, and race finish.
+### Details:
+Develop a system to manage race start conditions, track lap counts for each car, and determine the race finish based on lap completion.
+
+## 11. Develop Basic UI for Race Information [pending]
+### Dependencies: 3.9, 3.10
+### Description: Create a user interface to display race information such as positions and lap times.
+### Details:
+Design and implement a simple UI overlay that shows real-time race information, including car positions, lap times, and race status.
+
+## 12. Conduct Comprehensive Testing [pending]
+### Dependencies: 3.8, 3.10, 3.11
+### Description: Perform thorough testing of all race mechanics to ensure functionality and fairness.
+### Details:
+Run extensive simulations to test all aspects of the race mechanics, including AI behavior, physics consistency, and UI accuracy. Identify and fix any issues that arise.
+
+## 13. Create Track Waypoint System [pending]
+### Dependencies: None
+### Description: Design and implement waypoint system for AI navigation around the track
+### Details:
+Create a waypoint-based navigation system for the oval track. Define waypoint data structure with position, target speed, radius, and type information. Generate waypoints programmatically along the track path with appropriate spacing and curvature information for corners.
+
+## 14. Implement PID Steering Controller [pending]
+### Dependencies: None
+### Description: Create PID controller for smooth waypoint following and steering control
+### Details:
+Implement a PID (Proportional-Integral-Derivative) controller for AI steering. Calculate angle difference between car heading and target waypoint direction. Apply PID control with configurable Kp, Ki, Kd parameters for smooth and stable steering behavior. Include angle normalization and deadzone handling.
+

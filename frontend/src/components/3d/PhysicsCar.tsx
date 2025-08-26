@@ -1,5 +1,5 @@
-import React, { forwardRef, useRef, useEffect } from 'react'
-import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody } from '@react-three/rapier'
+import React, { forwardRef, useRef, useEffect, useCallback } from 'react'
+import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody, CollisionEnterPayload } from '@react-three/rapier'
 import * as RAPIER from '@dimforge/rapier3d-compat'
 import { useFrame } from '@react-three/fiber'
 import { Vector3 } from 'three'
@@ -26,6 +26,15 @@ interface PhysicsCarProps {
     right: string
     brake: string
   }
+  onCollision?: (collisionData: CollisionData) => void
+}
+
+interface CollisionData {
+  otherBody: RapierRigidBody
+  impactStrength: number
+  collisionDirection: Vector3
+  relativeVelocity: Vector3
+  contactPoint: Vector3
 }
 
 const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({ 
@@ -41,12 +50,159 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   maxSpeed = 12,
   steerStrength = 850,
   autoControl = false,
-  controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' }
+  controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' },
+  onCollision
 }, ref) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null)
   const keys = useRef<Set<string>>(new Set())
   const ai = useRef({ t: 0 })
   const spawn = useRef<[number, number, number]>(position)
+  
+  // 충돌 감지를 위한 이전 속도 저장
+  const prevVelocity = useRef<Vector3>(new Vector3())
+  const collisionCooldown = useRef(0)
+  
+  // 사용자 조작감 개선을 위한 상태
+  const inputSmoothing = useRef({
+    throttle: 0,      // 부드러운 가속/감속
+    steer: 0,         // 부드러운 조향
+  })
+  
+  // 충돌 이벤트 핸들러
+  const handleCollisionEnter = useCallback((payload: CollisionEnterPayload) => {
+    const body = (ref && 'current' in ref ? ref.current : rigidBodyRef.current)
+    if (!body || !onCollision) return
+    
+    // 쿨다운 체크 (너무 빈번한 충돌 이벤트 방지)
+    if (collisionCooldown.current > 0) return
+    
+    const otherBody = payload.other.rigidBody
+    if (!otherBody) return
+    
+    // 현재 차량의 속도와 상대방의 속도
+    const myVelocity = body.linvel()
+    const otherVelocity = otherBody.linvel()
+    
+    // 상대 속도 계산
+    const relativeVelocity = new Vector3(
+      myVelocity.x - otherVelocity.x,
+      myVelocity.y - otherVelocity.y,
+      myVelocity.z - otherVelocity.z
+    )
+    
+    // 충돌 강도 계산 (속도 기반)
+    const impactStrength = relativeVelocity.length()
+    
+    // 최소 충돌 강도 필터 (너무 약한 충돌은 무시)
+    if (impactStrength < 1.0) return
+    
+    // 충돌 방향 계산
+    const myPos = body.translation()
+    const otherPos = otherBody.translation()
+    const collisionDirection = new Vector3(
+      myPos.x - otherPos.x,
+      0, // Y축은 제외 (수평 충돌만 고려)
+      myPos.z - otherPos.z
+    ).normalize()
+    
+    // 접촉점 계산 (두 차량 중점)
+    const contactPoint = new Vector3(
+      (myPos.x + otherPos.x) / 2,
+      (myPos.y + otherPos.y) / 2,
+      (myPos.z + otherPos.z) / 2
+    )
+    
+    // 충돌 데이터 생성
+    const collisionData: CollisionData = {
+      otherBody,
+      impactStrength,
+      collisionDirection,
+      relativeVelocity,
+      contactPoint
+    }
+    
+    // ===== 공정한 충돌 반응 물리 적용 =====
+    applyCollisionPhysics(body, otherBody, collisionData)
+    
+    // 콜백 호출 (선택적)
+    if (onCollision) {
+      onCollision(collisionData)
+    }
+    
+    // 쿨다운 설정 (0.2초로 단축)
+    collisionCooldown.current = 0.2
+    
+    // 간단한 디버그 로그
+    console.log(`[충돌] ${name} - 강도: ${impactStrength.toFixed(1)}`)
+  }, [name, onCollision, ref])
+
+  // 충돌 반응 물리 계산 함수
+  const applyCollisionPhysics = useCallback((
+    myBody: RapierRigidBody, 
+    otherBody: RapierRigidBody, 
+    collisionData: CollisionData
+  ) => {
+    // 질량 가져오기
+    const myMass = (myBody as any).mass ? (myBody as any).mass() : mass
+    const otherMass = (otherBody as any).mass ? (otherBody as any).mass() : mass
+    
+    // 충돌 법선 벡터 (normalized)
+    const normal = collisionData.collisionDirection
+    
+    // 상대 속도를 법선 방향으로 투영
+    const relativeVelNormal = collisionData.relativeVelocity.dot(normal)
+    
+    // 이미 분리 중이면 충돌 반응 생략
+    if (relativeVelNormal > 0) return
+    
+    // 반발 계수 - 모든 차량에 동일 적용 (공정성)
+    const restitutionCoeff = 0.4
+    
+    // 충돌 임펄스 크기 계산 (운동량 보존)
+    const impulseStrength = -(1 + restitutionCoeff) * relativeVelNormal / (1/myMass + 1/otherMass)
+    
+    // 임펄스 벡터
+    const impulse = {
+      x: normal.x * impulseStrength,
+      y: 0, // 수평 충돌만 고려
+      z: normal.z * impulseStrength
+    }
+    
+    // 공정한 충돌 강도 제한 (모든 차량 동일)
+    const maxImpulse = myMass * 12 // 최대 임펄스 제한 (약간 낮춤)
+    const impulseLength = Math.sqrt(impulse.x * impulse.x + impulse.z * impulse.z)
+    if (impulseLength > maxImpulse) {
+      const scale = maxImpulse / impulseLength
+      impulse.x *= scale
+      impulse.z *= scale
+    }
+    
+    // 내 차량에 임펄스 적용 (밀려나는 방향)
+    myBody.applyImpulse(impulse, true)
+    
+    // 상대 차량에 반대 임펄스 적용 (뉴턴 3법칙)
+    otherBody.applyImpulse({
+      x: -impulse.x,
+      y: 0,
+      z: -impulse.z
+    }, true)
+    
+    // 공정한 회전 임펄스 (모든 차량 동일 반응)
+    const spinStrength = impulseLength * 0.05 // 스핀 강도 낮춤
+    const crossProduct = normal.x * collisionData.relativeVelocity.z - normal.z * collisionData.relativeVelocity.x
+    
+    myBody.applyTorqueImpulse({
+      x: 0,
+      y: crossProduct > 0 ? spinStrength : -spinStrength,
+      z: 0
+    }, true)
+    
+    // 간단한 물리 로그 (선택적) - 개발 환경에서만
+    if (import.meta.env?.DEV) {
+      console.log(`[충돌 물리] 임펄스: ${impulseLength.toFixed(2)}, 질량비: ${(myMass/otherMass).toFixed(2)}`)
+    }
+  }, [mass])
+
 
   // 입력 처리
   useEffect(() => {
@@ -64,6 +220,19 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     window.addEventListener('blur', blur)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur) }
   }, [autoControl])
+
+  // === Control helpers ===
+  const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x))
+  
+  // 부호 보존 거듭제곱: t ∈ [-1,1] → sign(t) * |t|^γ  (t=0이면 0)
+  const signPow = (t: number, gamma = 1.6) =>
+    (t === 0 ? 0 : Math.sign(t) * Math.pow(Math.abs(t), gamma))
+
+  // 데드존 유틸 (작은 떨림/크리핑 제거) - 더 큰 데드존으로 후진 방지
+  const applyDeadzone = (x: number, dz = 0.06) => (Math.abs(x) < dz ? 0 : x)
+
+  // 선형 보간 유틸
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * Math.min(1, Math.max(0, t))
 
   // Reusable vectors to avoid GC spikes each frame
   const vTmp = useRef({
@@ -92,6 +261,11 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const body = (ref && 'current' in ref ? ref.current : rigidBodyRef.current)
     if (!body) return
 
+    // 충돌 쿨다운 업데이트
+    if (collisionCooldown.current > 0) {
+      collisionCooldown.current -= delta
+    }
+
     // 속도/각속도
     const lv = body.linvel(), av = body.angvel()
     
@@ -117,56 +291,103 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     tmp.lv.set(lv.x, lv.y, lv.z)
     tmp.v2.set(lv.x, 0, lv.z)
     const speed = tmp.v2.length()
-
-    // 2단계: 전진/후진 + 조향 입력 처리
-    let throttle = 0
-    let steer = 0
-    let braking = 0
+    
+    // === 개선된 입력 처리 시스템 ===
+    let targetThrottle = 0
+    let targetSteer = 0
+    
+    // 키 입력 상태 (전체 스코프에서 사용)
+    const f = keys.current.has(controlKeys.forward) || keys.current.has('arrowup')
+    const b = keys.current.has(controlKeys.backward) || keys.current.has('arrowdown')
+    const l = keys.current.has(controlKeys.left)    || keys.current.has('arrowleft')
+    const r = keys.current.has(controlKeys.right)   || keys.current.has('arrowright')
+    const br = keys.current.has(controlKeys.brake)
+    
+    // 정지 스냅(anti-creep): 키가 없음 + 아주 느린 속도면 속도를 딱 0으로 고정 - 더 큰 임계값
+    const vPlanarLen = tmp.v2.length()
+    if (!f && !b && !br && vPlanarLen < 0.08) {
+      body.setLinvel({ x: 0, y: lv.y, z: 0 }, true)   // 수직속도는 유지
+      if (Math.abs(av.y) < 0.08) body.setAngvel({ x: av.x, y: 0, z: av.z }, true)
+    }
+    
     if (autoControl) {
       ai.current.t += delta
-      throttle = 0.3 // 자동 제어시 약간만
-      steer = 0 // 직진
+      targetThrottle = 0.3 // 자동 제어시 약간만
+      targetSteer = 0 // 직진
     } else {
-      const f = keys.current.has(controlKeys.forward) || keys.current.has('arrowup')
-      const b = keys.current.has(controlKeys.backward) || keys.current.has('arrowdown')
-      const l = keys.current.has(controlKeys.left)    || keys.current.has('arrowleft')
-      const r = keys.current.has(controlKeys.right)   || keys.current.has('arrowright')
-      const br= keys.current.has(controlKeys.brake)
       
-      // 전진/후진 (기존과 동일)
-      throttle = (f ? 1.5 : 0) + (b ? -1.0 : 0)
-      
-      // 좌우 조향 추가
-      steer = (l ? -1 : 0) + (r ? 1 : 0)
-      
-      // 브레이킹
-      braking = br ? 1.5 : 0
-    }
+      // 1) 원시 스로틀 커맨드 (-1..1)
+      const rawThrottleCmd = (f ? 1 : 0) + (b ? -1 : 0)
 
-    // ===== 2단계: 전진/후진 + 조향 물리 =====
-    
-    // 전진/후진 힘 계산
-    let driveForce = engineForce * throttle
-    
-    // 브레이킹
-    if (braking > 0 && speed > 0.1) {
-      const brakeDir = speed > 0.1 ? -1 : 1
-      driveForce += brakeForce * braking * brakeDir
+      // 2) 스무딩(램프): 올릴 때는 적당히, 뗄 땐 빠르게 - 더 부드러운 가속
+      const up = 4.5, down = 15.0
+      const targetThrottleSmooth = rawThrottleCmd
+      const prev = inputSmoothing.current.throttle
+      const speedK = (targetThrottleSmooth > prev ? up : down) * delta
+      inputSmoothing.current.throttle = lerp(prev, targetThrottleSmooth, speedK)
+
+      // 3) 데드존 + 부호 보존 커브 (0→0 보장, 저속 토크 억제)
+      let throttleProcessed = applyDeadzone(inputSmoothing.current.throttle, 0.04)
+      throttleProcessed = signPow(throttleProcessed, 1.6)  // 1.6~1.8 사이 취향 조절
+      targetThrottle = throttleProcessed
+      
+      // 사용자가 W만 누르면 추진력은 절대 음수가 되지 않도록
+      if (f && !b && targetThrottle < 0) targetThrottle = 0
+      if (b && !f && targetThrottle > 0) targetThrottle = 0
+      
+      // 2. 속도 기반 조향 민감도 - 더 부드러운 조향
+      const baseSteering = (l ? -1 : 0) + (r ? 1 : 0)
+      const steerDeadzone = 0.05
+      const speedRatio = clamp(speed / maxSpeed, 0, 1)
+      // 고속일수록 훨씬 둔감해지도록 (제곱 곡선)
+      const steerSensitivity = clamp(1 - Math.pow(speedRatio, 1.5), 0.2, 1)
+      const processedSteering = Math.abs(baseSteering) < steerDeadzone ? 0 : baseSteering
+      targetSteer = processedSteering * steerSensitivity
+      
     }
     
-    // 실제 질량 사용 (콜라이더 density 합산값)
-    const m = (body as any).mass ? (body as any).mass() : 800
-    const maxForce = m * 9.81 * 0.95 // 트랙션 한계(μ≈0.95)
-    driveForce = Math.max(-maxForce, Math.min(maxForce, driveForce))
+    // 부드러운 입력 스무딩 (조향만)
+    const smoothSpeed = {
+      steer: 12.0,    // 조향 반응속도 증가  
+    }
     
-    // 차량의 앞 방향으로 힘 적용
-    const forceVector = {
+    // throttle은 이미 위에서 처리됨
+    inputSmoothing.current.steer = lerp(inputSmoothing.current.steer, targetSteer, delta * smoothSpeed.steer)
+    
+    // 최종 입력값 적용
+    const throttle = targetThrottle  // 이미 곡선 처리됨
+    const steer = inputSmoothing.current.steer
+
+    // ===== 추진/제동 시스템 =====
+    const m = (body as any).mass ? (body as any).mass() : 800
+    const maxTraction = m * 9.81 * 0.95
+
+    // 추진력 (엔진)
+    let driveForce = engineForce * throttle
+    driveForce = Math.max(-maxTraction, Math.min(maxTraction, driveForce))
+
+    // 전진 방향으로 추진력 적용
+    const forwardForce = {
       x: tmp.forward.x * driveForce,
       y: 0,
       z: tmp.forward.z * driveForce
     }
+    body.addForce(forwardForce, true)
+
+    // 제동력: 현재 속도 벡터 반대방향 (절대 전/후 뒤집지 않음)
+    const vPlanar = tmp.v2 // 평면 속도 벡터
     
-    body.addForce(forceVector, true)
+    // 브레이크 키 또는 코스팅 상태에서 제동  
+    const wantBrake = br || (!f && !b) // 브레이크 키 또는 키를 놓음
+    let autoBrakeGain = 0
+    
+    if (wantBrake && vPlanarLen > 0.08) {
+      // 수동 브레이크는 강하게, 코스팅시는 더 약하게 - 후진 방지
+      autoBrakeGain = br ? 1.0 : 0.15
+      const vdir = vPlanar.clone().normalize()
+      const brakeMag = Math.min(brakeForce * autoBrakeGain, maxTraction)
+      body.addForce({ x: -vdir.x * brakeMag, y: 0, z: -vdir.z * brakeMag }, true)
+    }
     
     // ===== 측면 미끄러짐 방지 =====
     // 차량의 오른쪽 방향 벡터
@@ -186,18 +407,26 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       body.addForce(lateralForce, true)
     }
     
-    // ===== 조향 토크 추가 =====
-    // 속도 기반 조향 스케일링(정지 시 제자리 회전 방지)
-    const steerScale = Math.min(speed / 6, 1)
-    if (Math.abs(steer) > 0.01 && steerScale > 0.01) {
-      // 좌핸들(A)=좌회전, 우핸들(D)=우회전이 되도록 토크 부호 반전
-      const steerTorque = -steerStrength * steer * steerScale
-      body.addTorque({ x: 0, y: steerTorque, z: 0 }, true)
+    // ===== 개선된 조향 시스템 =====
+    // 속도 기반 조향 스케일링 (더 부드럽고 반응적으로)
+    const minSteerSpeed = 0.5 // 최소 조향 가능 속도
+    const maxSteerSpeed = 8   // 최대 조향 효율 속도
+    const steerScale = Math.max(0.1, Math.min(speed / maxSteerSpeed, 1.0))
+    
+    if (Math.abs(steer) > 0.01 && speed > minSteerSpeed) {
+      // 동적 조향력 계산
+      const baseSteerTorque = steerStrength * steer
+      const speedBonus = Math.min(speed / 4, 1.0) // 적절한 속도에서 조향 보너스
+      const finalSteerTorque = -baseSteerTorque * steerScale * (0.8 + speedBonus * 0.4)
+      
+      body.addTorque({ x: 0, y: finalSteerTorque, z: 0 }, true)
     } else {
-      // 조향 입력이 없으면 Y축 회전 감쇠
+      // 개선된 조향 안정화
       const currentYAngvel = av.y
-      if (Math.abs(currentYAngvel) > 0.05) {
-        const dampingTorque = -currentYAngvel * 1000 // 강한 감쇠
+      if (Math.abs(currentYAngvel) > 0.02) {
+        // 속도에 따른 안정화 강도
+        const stabilityStrength = Math.min(1200 + speed * 100, 2000)
+        const dampingTorque = -currentYAngvel * stabilityStrength
         body.addTorque({ x: 0, y: dampingTorque, z: 0 }, true)
       }
     }
@@ -252,11 +481,12 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       restitution={restitution}
       type="dynamic"
       enabledRotations={[false, true, false]} // 2단계: Y축 회전(조향) 활성화
-      linearDamping={0.1}
-      angularDamping={3.0}
+      linearDamping={0.25}
+      angularDamping={4.0}
       canSleep={false}
       colliders={false}
       ccd // CCD 활성화로 관통 방지
+      onCollisionEnter={handleCollisionEnter}
     >
       {/* 메인 차체(중간) - 현실적인 질량을 위해 밀도 상향 */}
       <CuboidCollider
@@ -320,7 +550,11 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
         sensor
       />
       {/* 시각 모델 - y = 0.5 위치 */}
-      <Car color={color} name={name} position={[0,0.5,0]} />
+      <Car 
+        color={color} 
+        name={name} 
+        position={[0,0.5,0]} 
+      />
     </RigidBody>
   )
 })

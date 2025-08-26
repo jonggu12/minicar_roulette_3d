@@ -1,0 +1,58 @@
+# Task ID: 2
+# Title: Implement Name Input Parsing
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Develop the system to parse and validate name inputs with optional weights.
+# Details:
+Create a function to parse input strings in the format 'name*weight'. Validate entries for correct format, handle duplicates, and normalize weights. Use regular expressions for parsing and validation.
+
+# Test Strategy:
+Unit tests for various input scenarios including edge cases and invalid formats.
+
+# Subtasks:
+## 1. Define TypeScript Type Definitions [done]
+### Dependencies: None
+### Description: Create TypeScript type definitions for name and weight inputs to ensure type safety.
+### Details:
+Define a TypeScript interface or type alias for the input format, such as 'name*weight'. Ensure that the type definitions cover both the name and weight components, and consider optional weights.
+<info added on 2025-08-23T08:47:53.679Z>
+Implementation completed: Created comprehensive TypeScript type definitions in shared/types/nameParser.ts with interfaces for ParticipantEntry, ParsedParticipants, ParsingOptions, ValidationError, and ParsingResult. Documentation created at .taskmaster/docs/task-explanations/task-2.1-typescript-definitions.md explaining the implementation in plain language for non-developers.
+</info added on 2025-08-23T08:47:53.679Z>
+
+## 2. Implement Parsing Function with Regular Expressions [done]
+### Dependencies: 2.1
+### Description: Develop a function to parse input strings using regular expressions to extract names and weights.
+### Details:
+Use regular expressions to identify and extract the 'name' and 'weight' components from input strings. Ensure the function can handle inputs with and without weights, and return a structured object based on the defined TypeScript types.
+<info added on 2025-08-23T09:55:56.366Z>
+Implementation completed: Created comprehensive parsing functions in shared/nameParser.ts with regex patterns for name*weight format. Implemented parseSingleInput(), parseNameInputs(), parseNameString(), and normalizeWeights() functions with full error handling, duplicate management, and edge case coverage. Supports multiple input formats and separators.
+</info added on 2025-08-23T09:55:56.366Z>
+
+## 3. Validate Input Format and Handle Errors [done]
+### Dependencies: 2.2
+### Description: Add validation logic to ensure inputs conform to the expected format and handle errors gracefully.
+### Details:
+Implement validation checks within the parsing function to confirm that inputs match the 'name*weight' format. Throw descriptive errors for invalid inputs and ensure the function handles these errors without crashing.
+<info added on 2025-08-23T10:02:22.236Z>
+Enhanced validation includes comprehensive input checks with security measures, improved error messages offering helpful suggestions, and enforcement of length and content limits. Developed a utility file, validationHelpers.ts, to facilitate batch validation and generate error suggestions. Strengthened defenses against malicious inputs and ensured user-friendly error guidance.
+</info added on 2025-08-23T10:02:22.236Z>
+
+## 4. Implement Duplicate Handling Logic [done]
+### Dependencies: 2.3
+### Description: Develop logic to identify and handle duplicate name entries, ensuring unique names in the parsed output.
+### Details:
+After parsing and validating inputs, check for duplicate names in the parsed data. Implement a strategy to handle duplicates, such as merging weights or discarding duplicates, based on project requirements.
+<info added on 2025-08-23T10:08:16.437Z>
+Enhanced the existing implementation with additional utilities in duplicateHandling.ts, including duplicate detection, resolution suggestions, merge functions, and statistics tracking. Added default case handling and improved error robustness. The system now supports 'merge', 'replace', and 'error' strategies for duplicate names.
+</info added on 2025-08-23T10:08:16.437Z>
+
+## 5. Normalize Weights [done]
+### Dependencies: 2.4
+### Description: Add functionality to normalize weights across all parsed entries to ensure they sum to a consistent value.
+### Details:
+Implement a normalization function that adjusts weights so that the total weight sums to a predefined value, such as 1 or 100. This function should be called after parsing and duplicate handling.
+<info added on 2025-08-23T10:11:33.429Z>
+Enhanced the existing `normalizeWeights` function and created specialized racing normalization utilities in `weightNormalization.ts`. Added integer-based car count normalization using the largest remainder method, probability calculations, and integrated these with the main parsing flow. The system now supports both mathematical normalization (decimal weights) and racing-specific normalization (integer car counts).
+</info added on 2025-08-23T10:11:33.429Z>
+

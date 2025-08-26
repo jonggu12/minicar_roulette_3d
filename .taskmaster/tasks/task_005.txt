@@ -1,0 +1,11 @@
+# Task ID: 5
+# Title: Integrate OBS Browser Source Compatibility
+# Status: pending
+# Dependencies: 3
+# Priority: medium
+# Description: Ensure the application can be used as a browser source in OBS for streaming.
+# Details:
+Implement features to support transparent backgrounds and 1080p/60fps presets. Test integration with OBS to ensure seamless streaming.
+
+# Test Strategy:
+Test OBS integration by setting up a stream and verifying video quality and transparency.

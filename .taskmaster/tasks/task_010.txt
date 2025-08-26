@@ -1,0 +1,11 @@
+# Task ID: 10
+# Title: Develop Real-time Features with WebSockets
+# Status: pending
+# Dependencies: 8
+# Priority: medium
+# Description: Implement real-time features using WebSockets for live race updates.
+# Details:
+Use WebSockets or a service like Ably/Pusher to provide real-time updates during races. Ensure low latency and reliable connections.
+
+# Test Strategy:
+Test real-time updates by simulating races and verifying timely updates on the client side.

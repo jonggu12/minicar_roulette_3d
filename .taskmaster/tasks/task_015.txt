@@ -1,0 +1,11 @@
+# Task ID: 15
+# Title: Develop Advanced Race Modes
+# Status: pending
+# Dependencies: 3
+# Priority: medium
+# Description: Implement advanced race modes like Podium, Knockout, and Relay.
+# Details:
+Create additional race modes with specific rules and mechanics. Ensure each mode is distinct and offers a unique racing experience.
+
+# Test Strategy:
+Test each race mode to ensure correct implementation of rules and mechanics.

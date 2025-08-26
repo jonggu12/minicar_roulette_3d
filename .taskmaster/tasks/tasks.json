@@ -226,8 +226,8 @@
               "3.2",
               "3.5"
             ],
-            "details": "Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.\n<info added on 2025-08-24T05:08:31.850Z>\nPhysicsCar component completed: Realistic physics engine implementation finished\n- Added physical properties such as engine power, max speed, rotation speed, and braking force\n- Implemented keyboard controls (WASD + Space) and AI auto-control\n- Clarified car front direction with arrows, grille, and headlights\n- Adjusted forward direction vector based on the X-axis\n- Prepared for testing with cars positioned at the starting line on TestTrack\n\nThe physics engine is fully operational, and both keyboard and AI controls are implemented and ready for testing.\n</info added on 2025-08-24T05:08:31.850Z>",
-            "status": "in-progress",
+            "details": "Use Rapier to add mass, velocity, and collision properties to the car model. Ensure the car can move and interact with the track and other cars.\n<info added on 2025-08-24T05:08:31.850Z>\nPhysicsCar component completed: Realistic physics engine implementation finished\n- Added physical properties such as engine power, max speed, rotation speed, and braking force\n- Implemented keyboard controls (WASD + Space) and AI auto-control\n- Clarified car front direction with arrows, grille, and headlights\n- Adjusted forward direction vector based on the X-axis\n- Prepared for testing with cars positioned at the starting line on TestTrack\n\nThe physics engine is fully operational, and both keyboard and AI controls are implemented and ready for testing.\n</info added on 2025-08-24T05:08:31.850Z>\n<info added on 2025-08-25T14:09:58.184Z>\nPhysicsCar physics system improvements completed:\n\n1. **Resolved Minor Reversing Issue**:\n   - Increased dead zone from 0.04 to 0.06\n   - Expanded stop snap threshold from 0.03 to 0.08\n   - Reduced coasting brake strength from 0.25 to 0.15\n\n2. **Improved Steering Sensitivity**:\n   - Added a steering dead zone of 0.05\n   - Changed speed-based sensitivity to a power curve (^1.5)\n   - Ensured a minimum sensitivity of 20% at high speeds\n\n3. **Enhanced Physical Stability**:\n   - Increased linear damping from 0.1 to 0.25 (improved inertia feel)\n   - Increased angular damping from 3.0 to 4.0 (improved rotational stability)\n\n4. **Adjusted Acceleration Responsiveness**:\n   - Reduced acceleration ramp-up from 6.0 to 4.5 (smoother start)\n   - Increased deceleration ramp-down from 12.0 to 15.0 (quicker stop)\n\nResult: Resolved W key reversing issue, achieved smoother handling, and stable physical behavior.\n</info added on 2025-08-25T14:09:58.184Z>",
+            "status": "done",
             "testStrategy": "Simulate car movement and collision with the track to verify physics behavior."
           },
           {
@@ -299,6 +299,24 @@
             "details": "Run extensive simulations to test all aspects of the race mechanics, including AI behavior, physics consistency, and UI accuracy. Identify and fix any issues that arise.",
             "status": "pending",
             "testStrategy": "Use automated and manual testing methods to validate all race mechanics and ensure fair AI behavior."
+          },
+          {
+            "id": 13,
+            "title": "Create Track Waypoint System",
+            "description": "Design and implement waypoint system for AI navigation around the track",
+            "details": "Create a waypoint-based navigation system for the oval track. Define waypoint data structure with position, target speed, radius, and type information. Generate waypoints programmatically along the track path with appropriate spacing and curvature information for corners.\n<info added on 2025-08-25T14:15:36.423Z>\nWaypoint system implementation completed successfully:\n\nCore Features Implemented:\n\n1. TrackWaypointSystem Class (utils/waypointSystem.ts):\n   - Programmatically generates waypoints for oval track geometry\n   - Supports configurable track dimensions matching Track.tsx\n   - Creates waypoints for straights and curves with proper spacing\n   - Calculates curvature-based target speeds using physics formula v = sqrt(a_lat/κ)\n   - Optimizes speeds with forward/backward passes for smooth transitions\n   - Provides comprehensive waypoint data: position, speed, curvature, normals, directions\n\n2. Waypoint Data Structure:\n   - Position (Vector3) for 3D coordinates\n   - Target speed based on track curvature and lateral acceleration limits\n   - Curvature information (1/radius) for physics-based speed calculation\n   - Direction vectors for car orientation\n   - Left/right normals for lane offset calculations\n   - Distance tracking and section progress\n\n3. WaypointFollower Utility:\n   - Provides AI car integration interface\n   - Supports dynamic lane offset for overtaking (-1 to +1)\n   - Automatic waypoint progression based on car position\n   - Target speed retrieval for speed control\n\n4. Visual Debugging System (WaypointVisualizer.tsx):\n   - Color-coded waypoint visualization (green=start/finish, blue=straight, red-yellow=corner speed)\n   - Racing line display as white line\n   - Optional speed indicators, direction arrows, lane normals\n   - Real-time debug information panel\n\n5. Integration Component (TestTrackWithWaypoints.tsx):\n   - Complete testing environment with oval track + waypoints\n   - 4-car starting grid positioned at start/finish line\n   - Player-controlled car (blue) + 3 AI cars\n   - Interactive debug controls and performance metrics\n\nTechnical Implementation:\n\n- Track Geometry Matching: Waypoints perfectly follow Track.tsx geometry (straight sections + semicircle curves)\n- Physics-Based Speed Control: Uses v_target = sqrt(a_lat_max / κ) with configurable max lateral acceleration\n- Smooth Speed Transitions: Forward/backward optimization passes prevent abrupt speed changes\n- Lane Offset Support: Left/right normal vectors enable AI overtaking behaviors\n- Configurable Parameters: Adjustable spacing, speed limits, corner factors\n- Performance Optimized: Efficient waypoint lookup and distance calculations\n\nApp Integration:\n\nUpdated App.tsx to showcase the new waypoint system with the oval track, providing a complete testing environment for AI development. The system is ready for Task 3.14 (PID controller implementation).\n\nFiles Created:\n- frontend/src/components/3d/utils/waypointSystem.ts - Core waypoint system\n- frontend/src/components/3d/WaypointVisualizer.tsx - Visual debugging component  \n- frontend/src/components/3d/TestTrackWithWaypoints.tsx - Integration test environment\n</info added on 2025-08-25T14:15:36.423Z>",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 3
+          },
+          {
+            "id": 14,
+            "title": "Implement PID Steering Controller",
+            "description": "Create PID controller for smooth waypoint following and steering control",
+            "details": "Implement a PID (Proportional-Integral-Derivative) controller for AI steering. Calculate angle difference between car heading and target waypoint direction. Apply PID control with configurable Kp, Ki, Kd parameters for smooth and stable steering behavior. Include angle normalization and deadzone handling.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 3
           }
         ]
       },
@@ -839,11 +857,98 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Develop Comprehensive AI System for Minicar Racing",
+        "description": "Implement an AI system with state machine, raycast sensors, and advanced behaviors for minicar racing.",
+        "details": "Develop an AI system for minicar racing that includes a state machine to manage different racing states such as overtaking, avoiding, cornering, and recovery. Use raycast sensors to detect track boundaries, other cars, and obstacles. Implement advanced behaviors to ensure the AI can handle complex racing scenarios, providing exciting and competitive races. The AI should be deterministic to ensure fairness and reproducibility, allowing for verification of race outcomes. Consider using a combination of physics-based and rule-based approaches to achieve realistic and competitive AI behavior. Integrate the AI system with the existing race mechanics and ensure compatibility with various track presets.",
+        "testStrategy": "Conduct extensive simulations to test AI behavior in different racing scenarios, including overtaking, avoiding collisions, and cornering. Verify the determinism of the AI by running identical simulations and ensuring consistent outcomes. Test the AI's interaction with different track presets and race modes to ensure adaptability and fairness. Use logging and debugging tools to analyze AI decision-making processes and refine behaviors as necessary.",
+        "status": "pending",
+        "dependencies": [
+          3,
+          14
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design AI State Machine Architecture",
+            "description": "Create the core state machine with Racing, Cornering, Overtaking, Avoiding, and Recovery states",
+            "details": "Design and implement a finite state machine with 5 core states: START, RACING (default), CORNERING (curve navigation), OVERTAKING (passing other cars), AVOIDING (collision avoidance), and RECOVER (stuck/spin recovery). Define state transition conditions with priority hierarchy: RECOVER > AVOIDING > OVERTAKING > CORNERING > RACING. Include cooldown mechanisms and minimum state duration to prevent state thrashing.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 2,
+            "title": "Implement Raycast Sensor System",
+            "description": "Create multi-directional raycast sensors for environment detection and collision avoidance",
+            "details": "Implement a raycast sensor system with 5-7 rays: forward (center, ±10°, ±20°) and lateral (±80°) for comprehensive environment sensing. Configure dynamic sensor range based on speed (R = 8 + 0.6*speed, clamped 6-18m). Optimize performance by running sensors at 30-60Hz instead of full physics rate. Include hit detection for other cars, track boundaries, and obstacles with distance and object type information.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 3,
+            "title": "Develop Virtual Lane Offset System",
+            "description": "Implement dynamic lane positioning for overtaking and avoidance maneuvers",
+            "details": "Create a virtual lane offset system that modifies waypoint following by adding perpendicular displacement. Implement smooth offset transitions using easing functions (τ=0.3-0.5s) to prevent sudden lane changes. Support ±0.8m offset for overtaking and ±0.4m for minor avoidance. Include safety checks to ensure adequate clearance before applying offsets and integrate with the state machine for automatic offset management.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 4,
+            "title": "Implement Curvature-Based Speed Control",
+            "description": "Create physics-based speed management system for different track sections",
+            "details": "Implement curvature-based speed control using the formula v_target = sqrt(a_lat_max / κ) where κ is curvature (1/R) and a_lat_max is maximum lateral acceleration (6-8 m/s²). Add curvature information to waypoint data structure and calculate appropriate target speeds for corners. Include progressive braking before corners and acceleration out of corners with smooth speed transitions to prevent abrupt speed changes.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 5,
+            "title": "Create Overtaking Logic System",
+            "description": "Implement intelligent overtaking behavior with safety checks and decision making",
+            "details": "Develop overtaking logic that triggers when front car distance < 5-8m and relative speed advantage exists. Include lateral safety checks using raycast sensors to ensure clear overtaking space. Implement overtaking cooldown (2s) and failure handling (retry limits). Add overtaking completion detection and automatic return to racing line. Ensure overtaking attempts respect track boundaries and other traffic conditions.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 6,
+            "title": "Implement Collision Avoidance System",
+            "description": "Create emergency avoidance behaviors for collision prevention",
+            "details": "Implement two-tier collision avoidance: Comfort Brake (distance 40-80% of sensor range) and Panic Brake (distance <40% of sensor range). Add lateral avoidance with minor lane offset when safe space is available. Include collision prediction algorithms based on relative velocity and trajectory. Implement avoidance state exit conditions with 0.2s minimum clear time before returning to racing state.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 7,
+            "title": "Create Recovery System for Stuck Cars",
+            "description": "Implement automatic recovery system for cars that get stuck or spin out",
+            "details": "Develop recovery state that triggers when car speed < 0.3 m/s for 1.2s+ with heading angle >60° from waypoint direction, or when car is in contact with walls for 1.0s+. Implement recovery actions: throttle cutoff, light braking, yaw correction torque, and limited reverse movement if necessary. Include automatic exit conditions when heading error <15° and speed recovery. Add deterministic recovery behavior to maintain race reproducibility.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          },
+          {
+            "id": 8,
+            "title": "Implement Seed-Based AI Personalization",
+            "description": "Create deterministic AI personality variations while maintaining fairness",
+            "details": "Implement seed-based AI personalization system that generates unique but fair AI parameters for each car. Use hash(carName + globalSeed) to create deterministic variations in aggressiveness (±10%), braking skill (±5%), cornering ability (±10%), and reaction time (±25ms). Ensure all variations stay within acceptable performance bounds to maintain fairness. Include parameter validation and logging for race reproducibility verification.",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 21
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-08-22T10:24:46.700Z",
-      "updated": "2025-08-24T04:57:38.556Z",
+      "updated": "2025-08-25T14:15:42.347Z",
       "description": "Tasks for master context"
     }
   }
