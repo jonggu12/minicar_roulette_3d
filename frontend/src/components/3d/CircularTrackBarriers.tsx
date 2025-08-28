@@ -111,11 +111,13 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         position={[0, barrierHeight / 2, -wallOffset]}
         colliders={false}
       >
-        <CuboidCollider
-          args={[straightLength / 2, barrierHeight / 2, barrierThickness / 2]}
-          friction={0.8}
-          restitution={0.3}
-        />
+          <CuboidCollider
+            args={[straightLength / 2, barrierHeight / 2, barrierThickness / 2]}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+          />
       </RigidBody>
     )
     
@@ -127,11 +129,13 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         position={[0, barrierHeight / 2, wallOffset]}
         colliders={false}
       >
-        <CuboidCollider
-          args={[straightLength / 2, barrierHeight / 2, barrierThickness / 2]}
-          friction={0.8}
-          restitution={0.3}
-        />
+          <CuboidCollider
+            args={[straightLength / 2, barrierHeight / 2, barrierThickness / 2]}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+          />
       </RigidBody>
     )
     
@@ -151,8 +155,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         >
           <CylinderCollider
             args={[barrierHeight / 2, barrierThickness / 3]}
-            friction={0.8}
-            restitution={0.3}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
           />
         </RigidBody>
       )
@@ -174,8 +180,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         >
           <CylinderCollider
             args={[barrierHeight / 2, barrierThickness / 3]}
-            friction={0.8}
-            restitution={0.3}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
           />
         </RigidBody>
       )
@@ -201,8 +209,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         >
           <CuboidCollider
             args={[trackInnerStraightLength / 2, barrierHeight / 2, barrierThickness / 2]}
-            friction={0.8}
-            restitution={0.3}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
           />
         </RigidBody>
       )
@@ -217,8 +227,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
         >
           <CuboidCollider
             args={[trackInnerStraightLength / 2, barrierHeight / 2, barrierThickness / 2]}
-            friction={0.8}
-            restitution={0.3}
+            friction={0.25}
+            restitution={0.02}
+            frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+            restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
           />
         </RigidBody>
       )
@@ -241,8 +253,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
             >
               <CylinderCollider
                 args={[barrierHeight / 2, barrierThickness / 4]}
-                friction={0.8}
-                restitution={0.3}
+                friction={0.25}
+                restitution={0.02}
+                frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+                restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
               />
             </RigidBody>
           )
@@ -264,8 +278,10 @@ const CircularTrackBarriers: React.FC<CircularTrackBarriersProps> = ({
             >
               <CylinderCollider
                 args={[barrierHeight / 2, barrierThickness / 4]}
-                friction={0.8}
-                restitution={0.3}
+                friction={0.25}
+                restitution={0.02}
+                frictionCombineRule={RAPIER.CoefficientCombineRule.Min}
+                restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
               />
             </RigidBody>
           )

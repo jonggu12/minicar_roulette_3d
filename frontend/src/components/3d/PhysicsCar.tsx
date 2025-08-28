@@ -1,5 +1,5 @@
 import React, { forwardRef, useRef, useEffect, useCallback } from 'react'
-import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody, CollisionEnterPayload } from '@react-three/rapier'
+import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody, CollisionEnterPayload, useRapier } from '@react-three/rapier'
 import * as RAPIER from '@dimforge/rapier3d-compat'
 import { useFrame } from '@react-three/fiber'
 import { Vector3 } from 'three'
@@ -42,18 +42,24 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   rotation = [0, 0, 0],
   color = '#ff6b6b',
   name = 'Car',
-  mass = 800,
-  friction = 0.4,
-  restitution = 0.02,
-  engineForce = 2800,
-  brakeForce = 6000,
-  maxSpeed = 12,
+  // Car.tsx(1.8 x 0.5 x 1.0 본체 기준) + 현재 콜라이더 밀도 합 ≈ 870~900kg
+  mass = 880,
+  // 드라이 아스팔트 타이어 계수에 가깝게 상향 (시뮬레이티브 접지감)
+  friction = 1.1,
+  // 커스텀 충돌 임펄스를 쓰므로 기본 반발은 0 유지
+  restitution = 0,
+  // 엔진/브레이크는 트랙/조향 제어와 균형
+  engineForce = 2300,
+  brakeForce = 6500,
+  // 기준 최고속(체감 속도 낮춤): 12 -> 9
+  maxSpeed = 9,
   steerStrength = 850,
   autoControl = false,
   controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' },
   onCollision
 }, ref) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null)
+  const { world } = useRapier()
   const keys = useRef<Set<string>>(new Set())
   const ai = useRef({ t: 0 })
   const spawn = useRef<[number, number, number]>(position)
@@ -61,6 +67,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   // 충돌 감지를 위한 이전 속도 저장
   const prevVelocity = useRef<Vector3>(new Vector3())
   const collisionCooldown = useRef(0)
+  const sideUnstickCooldown = useRef(0)
   
   // 사용자 조작감 개선을 위한 상태
   const inputSmoothing = useRef({
@@ -260,19 +267,18 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   useFrame((_, delta) => {
     const body = (ref && 'current' in ref ? ref.current : rigidBodyRef.current)
     if (!body) return
+    // world is obtained from useRapier() at component top-level (Rules of Hooks)
 
     // 충돌 쿨다운 업데이트
     if (collisionCooldown.current > 0) {
       collisionCooldown.current -= delta
     }
+    if (sideUnstickCooldown.current > 0) {
+      sideUnstickCooldown.current -= delta
+    }
 
     // 속도/각속도
     const lv = body.linvel(), av = body.angvel()
-    
-    // 2단계: X/Z축 회전만 안정화 (Y축 조향은 허용)
-    if (Math.abs(av.x) > 0.01 || Math.abs(av.z) > 0.01) {
-      body.setAngvel({ x: 0, y: av.y, z: 0 }, true)
-    }
 
     // 낙하 안전장치: 지면 아래로 떨어지면 리스폰
     const p = body.translation()
@@ -291,6 +297,26 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     tmp.lv.set(lv.x, lv.y, lv.z)
     tmp.v2.set(lv.x, 0, lv.z)
     const speed = tmp.v2.length()
+
+    // === 벽-사이드 스턱 방지 보조 (사이드 레이캐스트) ===
+    let rightBlocked = false, leftBlocked = false
+    try {
+      const p = body.translation()
+      // probe params
+      const sideOffset = 0.7
+      const probeUp = 0.4
+      const reach = 0.35
+      // Right probe
+      const oR = { x: p.x + tmp.right.x * sideOffset, y: p.y + probeUp, z: p.z + tmp.right.z * sideOffset }
+      const rR = new RAPIER.Ray(oR, { x: tmp.right.x, y: 0, z: tmp.right.z })
+      const hitR = world.castRay(rR, reach, true)
+      rightBlocked = !!(hitR && (hitR as any).toi >= 0)
+      // Left probe
+      const oL = { x: p.x - tmp.right.x * sideOffset, y: p.y + probeUp, z: p.z - tmp.right.z * sideOffset }
+      const rL = new RAPIER.Ray(oL, { x: -tmp.right.x, y: 0, z: -tmp.right.z })
+      const hitL = world.castRay(rL, reach, true)
+      leftBlocked = !!(hitL && (hitL as any).toi >= 0)
+    } catch {}
     
     // === 개선된 입력 처리 시스템 ===
     let targetThrottle = 0
@@ -324,7 +350,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       const targetThrottleSmooth = rawThrottleCmd
       const prev = inputSmoothing.current.throttle
       const speedK = (targetThrottleSmooth > prev ? up : down) * delta
-      inputSmoothing.current.throttle = lerp(prev, targetThrottleSmooth, speedK)
+      inputSmoothing.current.throttle = clamp(lerp(prev, targetThrottleSmooth, speedK), -1, 1)
 
       // 3) 데드존 + 부호 보존 커브 (0→0 보장, 저속 토크 억제)
       let throttleProcessed = applyDeadzone(inputSmoothing.current.throttle, 0.04)
@@ -342,7 +368,9 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       // 고속일수록 훨씬 둔감해지도록 (제곱 곡선)
       const steerSensitivity = clamp(1 - Math.pow(speedRatio, 1.5), 0.2, 1)
       const processedSteering = Math.abs(baseSteering) < steerDeadzone ? 0 : baseSteering
-      targetSteer = processedSteering * steerSensitivity
+      // 저속에서 유턴 억제를 위해 추가 스케일: 0m/s에서 0.65, 2m/s에서 0.9, 그 이상 1.0
+      const lowSpeedSteerScale = 0.65 + 0.35 * clamp(speed / 2.0, 0, 1)
+      targetSteer = processedSteering * steerSensitivity * lowSpeedSteerScale
       
     }
     
@@ -372,7 +400,27 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       y: 0,
       z: tmp.forward.z * driveForce
     }
+    // 저속·대조향 시 제자리 스핀 방지: 조향 강도에 따라 엔진 출력 소폭 감소(저속에서 더 큼)
+    const steerLoad = Math.abs(steer)
+    const speedSteerRatio = clamp(speed / 6, 0, 1)
+    // 조향 중 저속 스핀 억제: 저속+대조향에서 엔진 출력 더 줄임
+    const driveSteerScale = clamp(1 - 0.5 * steerLoad * (1 - speedSteerRatio), 0.5, 1)
+    forwardForce.x *= driveSteerScale
+    forwardForce.z *= driveSteerScale
     body.addForce(forwardForce, true)
+
+    // === 사이드 스턱 탈출 보조 ===
+    if (sideUnstickCooldown.current <= 0 && throttle > 0 && speed < 1.2 && (leftBlocked || rightBlocked)) {
+      // 벽 반대 방향으로 측면 밀어내기 + 약간의 전진 보조
+      const lateralDir = rightBlocked && !leftBlocked ? -1 : (leftBlocked && !rightBlocked ? 1 : 0)
+      if (lateralDir !== 0) {
+        const lateralFx = m * 12 * lateralDir
+        const forwardFx = m * 4
+        body.addForce({ x: tmp.right.x * lateralFx + tmp.forward.x * forwardFx, y: 0, z: tmp.right.z * lateralFx + tmp.forward.z * forwardFx }, true)
+        // 탈출 보조는 짧은 쿨다운
+        sideUnstickCooldown.current = 0.25
+      }
+    }
 
     // 제동력: 현재 속도 벡터 반대방향 (절대 전/후 뒤집지 않음)
     const vPlanar = tmp.v2 // 평면 속도 벡터
@@ -388,6 +436,13 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       const brakeMag = Math.min(brakeForce * autoBrakeGain, maxTraction)
       body.addForce({ x: -vdir.x * brakeMag, y: 0, z: -vdir.z * brakeMag }, true)
     }
+
+    // 저속·대조향 보조 브레이크: 유턴 시 과회전 억제를 위해 소량의 감속
+    if (!wantBrake && f && Math.abs(steer) > 0.6 && speed > 0.05 && speed < 1.2) {
+      const vdir = vPlanar.clone().normalize()
+      const assist = Math.min(m * 5.0, maxTraction * 0.25)
+      body.addForce({ x: -vdir.x * assist, y: 0, z: -vdir.z * assist }, true)
+    }
     
     // ===== 측면 미끄러짐 방지 =====
     // 차량의 오른쪽 방향 벡터
@@ -398,7 +453,11 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     
     // 측면 미끄러짐이 있으면 반대 힘 적용 (완화됨)
     if (Math.abs(lateralVelocity) > 0.1) {
-      const lateralDrag = -lateralVelocity * m * 1.2 // 과도한 횡저항 완화
+      // 저속·대조향에서 횡저항을 가중해 유턴 시 스핀 억제
+      const steerLoadAbs = Math.abs(steer)
+      const lowSpeedFactor = 1 - clamp(speed / 6, 0, 1)
+      const lateralGain = 1.2 + 1.5 * steerLoadAbs * lowSpeedFactor
+      const lateralDrag = -lateralVelocity * m * lateralGain
       const lateralForce = {
         x: tmp.right.x * lateralDrag,
         y: 0,
@@ -409,48 +468,67 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     
     // ===== 개선된 조향 시스템 =====
     // 속도 기반 조향 스케일링 (더 부드럽고 반응적으로)
-    const minSteerSpeed = 0.5 // 최소 조향 가능 속도
-    const maxSteerSpeed = 8   // 최대 조향 효율 속도
-    const steerScale = Math.max(0.1, Math.min(speed / maxSteerSpeed, 1.0))
-    
-    if (Math.abs(steer) > 0.01 && speed > minSteerSpeed) {
-      // 동적 조향력 계산
-      const baseSteerTorque = steerStrength * steer
-      const speedBonus = Math.min(speed / 4, 1.0) // 적절한 속도에서 조향 보너스
-      const finalSteerTorque = -baseSteerTorque * steerScale * (0.8 + speedBonus * 0.4)
-      
-      body.addTorque({ x: 0, y: finalSteerTorque, z: 0 }, true)
-    } else {
-      // 개선된 조향 안정화
-      const currentYAngvel = av.y
-      if (Math.abs(currentYAngvel) > 0.02) {
-        // 속도에 따른 안정화 강도
-        const stabilityStrength = Math.min(1200 + speed * 100, 2000)
-        const dampingTorque = -currentYAngvel * stabilityStrength
-        body.addTorque({ x: 0, y: dampingTorque, z: 0 }, true)
-      }
+    const maxSteerSpeed = 8
+    // 목표 요레이트 기반 P-제어로 조향 토크를 제한: 저속/정지에서 과토크 방지
+    const minSteerSpeed = 0.9
+    const speedRatioSteer = clamp((speed - minSteerSpeed) / maxSteerSpeed, 0, 1)
+    const yawRateMax = 1.7 // rad/s, 요레이트 상한 추가 축소
+    const targetYaw = steer * yawRateMax * speedRatioSteer
+    const yawErr = targetYaw - av.y
+    // 질량 스케일 보정: 무거울수록 더 큰 토크 필요 → 게인/캡을 질량비로 스케일
+    const baseMass = 800
+    const massRatio = m / baseMass
+    const yawGain = 650 * (0.6 + 0.4 * speedRatioSteer) * massRatio
+    let torqueY = -yawErr * yawGain // P 제어
+    // 소량의 요 감쇠(D) 추가해 오버슈트 방지
+    const dampingGain = 420 * (0.7 + 0.3 * speedRatioSteer) * massRatio
+    torqueY += -av.y * dampingGain
+    // 토크 캡: 차량별 일관성 유지를 위해 상한 적용(질량 비례)
+    const torqueCap = steerStrength * 0.7 * massRatio
+    torqueY = Math.max(-torqueCap, Math.min(torqueCap, torqueY))
+
+    // 조향 조건 강화: 충분한 속도 + 추진력이 있을 때 주토크 적용, 아니면 감쇠만
+    const hasThrottle = Math.abs(targetThrottle) > 0.05
+    if (Math.abs(steer) > 0.01 && speed > minSteerSpeed && hasThrottle && Math.abs(torqueY) > 1e-3) {
+      body.addTorque({ x: 0, y: torqueY, z: 0 }, true)
+    } else if (Math.abs(av.y) > 0.02) {
+      const dampingOnly = -av.y * (dampingGain * 1.0)
+      body.addTorque({ x: 0, y: dampingOnly, z: 0 }, true)
     }
 
-    // 5) 항력+구름저항 + 다운포스 (완화)
+    // ESC 스타일: 요레이트 하드 리미터로 과회전 방지 (유턴 안정화)
+    const yawLimit = yawRateMax * 1.0
+    if (Math.abs(av.y) > yawLimit) {
+      const excess = av.y - Math.sign(av.y) * yawLimit
+      const escTorque = -excess * (800 * massRatio)
+      body.addTorque({ x: 0, y: escTorque, z: 0 }, true)
+    }
+
+    // 5) 항력+구름저항 + 다운포스 (maxSpeed 정규화)
     if (speed > 0.01) {
       tmp.vdir.copy(tmp.v2).normalize()
-      const dragK = 0.25, rollK = 8
+      // 기준 속도(디폴트 maxSpeed=12)를 기준으로 정규화하여 튜닝 변경 시 감각 유지
+      const baseMax = 12
+      const ms = Math.max(1, maxSpeed)
+      const scaleQ = (baseMax / ms) * (baseMax / ms) // v^2 항목 스케일
+      const scaleL = (baseMax / ms)                  // v 항목 스케일
+      const dragKBase = 0.25, rollKBase = 8, downKBase = 0.2
+      const dragK = dragKBase * scaleQ
+      const rollK = rollKBase * scaleL
+      const downK = downKBase * scaleQ
       const Fx = dragK * speed * speed + rollK * speed
       body.addForce({ x: -tmp.vdir.x * Fx, y: 0, z: -tmp.vdir.z * Fx }, true)
-      const downK = 0.2 // 다운포스 완화
       body.addForce({ x: 0, y: -downK * speed * speed, z: 0 }, true)
     }
 
-    // 6) 안정화: X/Z 각속도 감쇠, 수직 속도 캡
-    if (Math.abs(av.x) > 0.1 || Math.abs(av.z) > 0.1) {
-      body.setAngvel({ x: av.x * 0.9, y: av.y, z: av.z * 0.9 }, true)
-    }
+    // 6) 안정화: 수직 속도 캡 (롤/피치 보정은 enabledRotations로 잠금 처리)
     if (Math.abs(lv.y) > 16) {
       body.setLinvel({ x: lv.x, y: Math.sign(lv.y) * 16, z: lv.z }, true)
     }
 
     // 7) 속도 하드캡
-    const hardMax = maxSpeed * 1.15
+    // 하드캡을 타이트하게 조정하여 최고속 근처에서 과도한 가속 억제
+    const hardMax = maxSpeed * 1.05
     if (speed > hardMax && speed > 1e-6) {
       tmp.vdir.copy(tmp.v2).normalize()
       body.setLinvel({ x: tmp.vdir.x * hardMax, y: lv.y, z: tmp.vdir.z * hardMax }, true)
@@ -477,8 +555,6 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       ref={ref || rigidBodyRef}
       position={position}
       rotation={rotation}
-      friction={friction}
-      restitution={restitution}
       type="dynamic"
       enabledRotations={[false, true, false]} // 2단계: Y축 회전(조향) 활성화
       linearDamping={0.25}
@@ -493,8 +569,8 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
         args={[0.9, 0.25, 0.5]}
         position={[0, 0.78, 0]}
         density={800} // ≈720 kg
-        friction={friction}
-        restitution={restitution}
+        friction={1.0}
+        restitution={0}
         frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
         restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
       />
@@ -504,8 +580,10 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
         args={[0.6, 0.15, 0.35]}
         position={[0, 1.28, 0]}
         density={200} // ≈50 kg
-        friction={friction}
-        restitution={restitution}
+        friction={0.7}
+        restitution={0}
+        frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+        restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
       />
 
       {/* 하부 스키드(접지 담당, 가장 낮은 지점) */}
@@ -513,8 +591,10 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
         args={[0.8, 0.1, 0.4]}
         position={[0, 0.15, 0]} // 바닥까지 ≈0.05
         density={400} // ≈100 kg
-        friction={friction}
-        restitution={restitution}
+        friction={1.25}
+        restitution={0}
+        frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+        restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
       />
       
       {/* 4개 휠 콜라이더 (실린더) - 트랙 표면에 맞춤 */}

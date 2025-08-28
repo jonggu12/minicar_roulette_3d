@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Shape, ExtrudeGeometry, Vector2 } from 'three'
 import { RigidBody, CuboidCollider } from '@react-three/rapier'
+import * as RAPIER from '@dimforge/rapier3d-compat'
 
 interface TrackProps {
   innerRadius?: number
@@ -107,13 +108,41 @@ const Track: React.FC<TrackProps> = ({
         </mesh>
         {/* Track collision - multiple box colliders matching track shape */}
         {/* Bottom straight section */}
-        <CuboidCollider args={[straightLength/2, 0.1, trackWidth/2]} position={[0, 0, -radius]} />
+        <CuboidCollider
+          args={[straightLength/2, 0.1, trackWidth/2]} 
+          position={[0, 0, -radius]}
+          friction={1.05}
+          restitution={0}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+        />
         {/* Top straight section */}
-        <CuboidCollider args={[straightLength/2, 0.1, trackWidth/2]} position={[0, 0, radius]} />
+        <CuboidCollider
+          args={[straightLength/2, 0.1, trackWidth/2]} 
+          position={[0, 0, radius]}
+          friction={1.05}
+          restitution={0}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+        />
         {/* Right curved section */}
-        <CuboidCollider args={[trackWidth/2, 0.1, radius]} position={[straightLength/2, 0, 0]} />
+        <CuboidCollider
+          args={[trackWidth/2, 0.1, radius]} 
+          position={[straightLength/2, 0, 0]}
+          friction={1.05}
+          restitution={0}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+        />
         {/* Left curved section */}
-        <CuboidCollider args={[trackWidth/2, 0.1, radius]} position={[-straightLength/2, 0, 0]} />
+        <CuboidCollider
+          args={[trackWidth/2, 0.1, radius]} 
+          position={[-straightLength/2, 0, 0]}
+          friction={1.05}
+          restitution={0}
+          frictionCombineRule={RAPIER.CoefficientCombineRule.Average}
+          restitutionCombineRule={RAPIER.CoefficientCombineRule.Min}
+        />
       </RigidBody>
       
       {/* Track markings */}

@@ -247,10 +247,7 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
               color={carColors[index % carColors.length]}
               name={`Car ${index + 1}`}
               autoControl={index > 0} // First car is player controlled, others are AI
-              mass={800}
-              engineForce={4000}       // High power for Indy500 speeds
-              maxSpeed={18}            // Very high max speed for straights
-              steerStrength={1200}     // Strong steering for sharp corners
+              // 기본값(느린 속도/부드러운 조향)을 사용하도록 고성능 오버라이드 제거
             />
           ))}
 
