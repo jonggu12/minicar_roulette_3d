@@ -1,8 +1,8 @@
 import React, { forwardRef, useRef, useEffect, useCallback } from 'react'
-import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody, CollisionEnterPayload, useRapier } from '@react-three/rapier'
+import { RigidBody, CuboidCollider, CylinderCollider, RapierRigidBody, CollisionEnterPayload, IntersectionEnterPayload, IntersectionExitPayload, useRapier } from '@react-three/rapier'
 import * as RAPIER from '@dimforge/rapier3d-compat'
 import { useFrame } from '@react-three/fiber'
-import { Vector3 } from 'three'
+import { Vector3, Mesh } from 'three'
 import Car from './Car'
 import useGroundAssist from './utils/useGroundAssist'
 
@@ -68,6 +68,14 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   const prevVelocity = useRef<Vector3>(new Vector3())
   const collisionCooldown = useRef(0)
   const sideUnstickCooldown = useRef(0)
+  const frontUnstickCooldown = useRef(0)
+  const debugTimer = useRef(0)
+  const frontHitMarkerRef = useRef<Mesh | null>(null)
+  const frontSensorBlocked = useRef(false)
+  // 전방 충돌 응답/회피 상태
+  const wasFrontBlocked = useRef(false)
+  const wallAvoidTimer = useRef(0)
+  const wallAvoidSteerSign = useRef(0) // -1: 좌로 회피, +1: 우로 회피
   
   // 사용자 조작감 개선을 위한 상태
   const inputSmoothing = useRef({
@@ -276,6 +284,9 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     if (sideUnstickCooldown.current > 0) {
       sideUnstickCooldown.current -= delta
     }
+    if (frontUnstickCooldown.current > 0) {
+      frontUnstickCooldown.current -= delta
+    }
 
     // 속도/각속도
     const lv = body.linvel(), av = body.angvel()
@@ -298,14 +309,19 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     tmp.v2.set(lv.x, 0, lv.z)
     const speed = tmp.v2.length()
 
-    // === 벽-사이드 스턱 방지 보조 (사이드 레이캐스트) ===
-    let rightBlocked = false, leftBlocked = false
+    // === 벽-사이드/정면 스턱 방지 보조 (레이캐스트) ===
+    let rightBlocked = false, leftBlocked = false, frontBlockedRay = false
+    let frontNear = false
+    let minToi = Infinity
     try {
       const p = body.translation()
       // probe params
       const sideOffset = 0.7
       const probeUp = 0.4
       const reach = 0.35
+      // 정면 감지: 차 앞단을 살짝 넘긴 위치에서 쏨(자기차 감지 방지)
+      const reachFront = 1.2  // 레이 거리 (월까지)
+      const reachFrontNear = 0.25
       // Right probe
       const oR = { x: p.x + tmp.right.x * sideOffset, y: p.y + probeUp, z: p.z + tmp.right.z * sideOffset }
       const rR = new RAPIER.Ray(oR, { x: tmp.right.x, y: 0, z: tmp.right.z })
@@ -316,7 +332,84 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       const rL = new RAPIER.Ray(oL, { x: -tmp.right.x, y: 0, z: -tmp.right.z })
       const hitL = world.castRay(rL, reach, true)
       leftBlocked = !!(hitL && (hitL as any).toi >= 0)
+      // Front probes (center/left/right) for better detection on angles
+      const frontStart = 1.05 // start ahead of car to avoid self-hit
+      const oCenter = { x: p.x + tmp.forward.x * frontStart, y: p.y + probeUp, z: p.z + tmp.forward.z * frontStart }
+      const oLeft   = { x: oCenter.x - tmp.right.x * 0.35,    y: oCenter.y,     z: oCenter.z - tmp.right.z * 0.35 }
+      const oRight  = { x: oCenter.x + tmp.right.x * 0.35,    y: oCenter.y,     z: oCenter.z + tmp.right.z * 0.35 }
+      const hC = world.castRay(new RAPIER.Ray(oCenter, { x: tmp.forward.x, y: 0, z: tmp.forward.z }), reachFront, true) as any
+      const hL = world.castRay(new RAPIER.Ray(oLeft,   { x: tmp.forward.x, y: 0, z: tmp.forward.z }), reachFront, true) as any
+      const hR = world.castRay(new RAPIER.Ray(oRight,  { x: tmp.forward.x, y: 0, z: tmp.forward.z }), reachFront, true) as any
+      if (hC && hC.toi >= 0) { frontBlockedRay = true; minToi = Math.min(minToi, hC.toi) }
+      if (hL && hL.toi >= 0) { frontBlockedRay = true; minToi = Math.min(minToi, hL.toi) }
+      if (hR && hR.toi >= 0) { frontBlockedRay = true; minToi = Math.min(minToi, hR.toi) }
+      // 좌/우 근접성 비교를 위한 toi 수집
+      const leftToi = (hL && hL.toi >= 0) ? hL.toi : Infinity
+      const rightToi = (hR && hR.toi >= 0) ? hR.toi : Infinity
+      if (frontBlockedRay) {
+        const hitX = oCenter.x + tmp.forward.x * minToi
+        const hitY = oCenter.y
+        const hitZ = oCenter.z + tmp.forward.z * minToi
+        if (frontHitMarkerRef.current) {
+          frontHitMarkerRef.current.visible = true
+          frontHitMarkerRef.current.position.set(hitX, hitY, hitZ)
+        }
+      } else {
+        if (frontHitMarkerRef.current) frontHitMarkerRef.current.visible = false
+      }
     } catch {}
+
+    // 1) 정면 감지 결과 집계(frontBlocked, frontNear)
+    const frontBlocked = frontBlockedRay || frontSensorBlocked.current
+    // 센서가 true면 실제 접촉 상태로 간주하여 near도 true
+    const nearThreshold = 0.25
+    frontNear = frontSensorBlocked.current || (frontBlockedRay && minToi <= nearThreshold)
+
+    // 전방 차단 신규 진입 시: 즉시 튕겨내기 + 회피 방향 설정
+    if (frontBlocked && frontNear && !wasFrontBlocked.current) {
+      const m = (body as any).mass ? (body as any).mass() : 800
+      const lvNow = body.linvel()
+      tmp.v2.set(lvNow.x, 0, lvNow.z)
+      const forwardSpeed = tmp.v2.dot(tmp.forward)
+      // 벽을 향해 진입 중일 때만 튕김
+      if (forwardSpeed > 0.05) {
+        const J = m * 1.0
+        body.applyImpulse({ x: -tmp.forward.x * J, y: 0, z: -tmp.forward.z * J }, true)
+      }
+      // 레이 캐스트 좌/우 toi 기반 회피 조향 방향 설정 (가까운 쪽을 피함)
+      // leftToi/rightToi는 위 블록 스코프이므로 frontBlocked 시 재계산 필요할 수 있으나
+      // minToi 업데이트 시점과 동일 프레임이므로, 가까운 측면 센서로 대체
+      if (leftBlocked !== rightBlocked) {
+        wallAvoidSteerSign.current = rightBlocked ? -1 : 1
+      } else {
+        // 둘 다 막히지 않았거나 둘 다 막혔으면 약하게 무작위/우선 오른쪽
+        wallAvoidSteerSign.current = 1
+      }
+      wallAvoidTimer.current = 0.6
+      wasFrontBlocked.current = true
+    } else if (!frontBlocked) {
+      wasFrontBlocked.current = false
+    }
+
+    // 디버그 로그: 0.3초 간격으로 전방 차단 상태 출력 (3-ray + sensor)
+    debugTimer.current += delta
+    if (debugTimer.current > 0.3) {
+      const speedForward = tmp.v2.dot(tmp.forward)
+      console.log(`[FrontDetect] ray=${frontBlockedRay}, sensor=${frontSensorBlocked.current}, near=${frontNear}, speedF=${speedForward.toFixed(3)}, speed=${speed.toFixed(3)}`)
+      debugTimer.current = 0
+    }
+
+    // 2) 전진 속도 성분 강제 제거 (엔진력 계산 전에 적용)
+    if (frontBlocked && frontNear) {
+      const speedForward = tmp.v2.dot(tmp.forward)
+      if (speedForward > 0.01) {
+        const newVx = lv.x - tmp.forward.x * speedForward
+        const newVz = lv.z - tmp.forward.z * speedForward
+        body.setLinvel({ x: newVx, y: lv.y, z: newVz }, true)
+        // 보정 후 내부 상태도 업데이트하여 일관성 유지
+        tmp.v2.set(newVx, 0, newVz)
+      }
+    }
     
     // === 개선된 입력 처리 시스템 ===
     let targetThrottle = 0
@@ -356,10 +449,25 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       let throttleProcessed = applyDeadzone(inputSmoothing.current.throttle, 0.04)
       throttleProcessed = signPow(throttleProcessed, 1.6)  // 1.6~1.8 사이 취향 조절
       targetThrottle = throttleProcessed
-      
+
       // 사용자가 W만 누르면 추진력은 절대 음수가 되지 않도록
       if (f && !b && targetThrottle < 0) targetThrottle = 0
       if (b && !f && targetThrottle > 0) targetThrottle = 0
+
+      // 3) 정면 차단 시 입력 스냅: 전진 차단, 후진 가속 빠르게 스냅
+      const frontBlockedSnap = frontBlocked
+      if (frontBlockedSnap) {
+        if (f && !b) {
+          // 전진 출력 차단
+          targetThrottle = Math.min(0, targetThrottle)
+        } else if (b) {
+          // 후진은 스무딩 무시하고 빠르게 스냅
+          const snapSpeed = 35 // 더 빠른 램프업
+          inputSmoothing.current.throttle = lerp(prev, -1, Math.min(1, delta * snapSpeed))
+          targetThrottle = -1
+          if (import.meta.env?.DEV) console.log('[ReverseSnap] throttle -> -1 (frontBlocked)')
+        }
+      }
       
       // 2. 속도 기반 조향 민감도 - 더 부드러운 조향
       const baseSteering = (l ? -1 : 0) + (r ? 1 : 0)
@@ -383,7 +491,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     inputSmoothing.current.steer = lerp(inputSmoothing.current.steer, targetSteer, delta * smoothSpeed.steer)
     
     // 최종 입력값 적용
-    const throttle = targetThrottle  // 이미 곡선 처리됨
+    const throttle = targetThrottle  // 이미 곡선/스냅 처리됨
     const steer = inputSmoothing.current.steer
 
     // ===== 추진/제동 시스템 =====
@@ -391,7 +499,17 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const maxTraction = m * 9.81 * 0.95
 
     // 추진력 (엔진)
-    let driveForce = engineForce * throttle
+    // 3) 정면 차단 시 전진 출력 차단
+    let driveThrottle = throttle
+    if (frontBlocked && driveThrottle > 0) driveThrottle = 0
+    // 전방 차단 시, 입력 여부와 무관하게 강한 자동 후진 보조
+    if (frontBlocked && frontNear) {
+      const targetNeg = b ? -1 : -0.7
+      driveThrottle = Math.min(driveThrottle, targetNeg)
+    }
+    // 후진 부스트: 정면 차단 + 후진 입력 시 초기 탈출력 강화 (상향)
+    let reverseBoost = frontBlocked && b && driveThrottle < 0
+    let driveForce = engineForce * (reverseBoost ? driveThrottle * 1.6 : driveThrottle)
     driveForce = Math.max(-maxTraction, Math.min(maxTraction, driveForce))
 
     // 전진 방향으로 추진력 적용
@@ -405,12 +523,15 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const speedSteerRatio = clamp(speed / 6, 0, 1)
     // 조향 중 저속 스핀 억제: 저속+대조향에서 엔진 출력 더 줄임
     const driveSteerScale = clamp(1 - 0.5 * steerLoad * (1 - speedSteerRatio), 0.5, 1)
-    forwardForce.x *= driveSteerScale
-    forwardForce.z *= driveSteerScale
+    // 후진 시에는 출력 감쇠를 적용하지 않아 초기 탈출을 돕는다
+    if (driveThrottle > 0) {
+      forwardForce.x *= driveSteerScale
+      forwardForce.z *= driveSteerScale
+    }
     body.addForce(forwardForce, true)
 
     // === 사이드 스턱 탈출 보조 ===
-    if (sideUnstickCooldown.current <= 0 && throttle > 0 && speed < 1.2 && (leftBlocked || rightBlocked)) {
+    if (!frontBlocked && sideUnstickCooldown.current <= 0 && throttle > 0 && speed < 1.2 && (leftBlocked || rightBlocked)) {
       // 벽 반대 방향으로 측면 밀어내기 + 약간의 전진 보조
       const lateralDir = rightBlocked && !leftBlocked ? -1 : (leftBlocked && !rightBlocked ? 1 : 0)
       if (lateralDir !== 0) {
@@ -429,7 +550,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const wantBrake = br || (!f && !b) // 브레이크 키 또는 키를 놓음
     let autoBrakeGain = 0
     
-    if (wantBrake && vPlanarLen > 0.08) {
+    if (wantBrake && !frontBlocked && vPlanarLen > 0.08) {
       // 수동 브레이크는 강하게, 코스팅시는 더 약하게 - 후진 방지
       autoBrakeGain = br ? 1.0 : 0.15
       const vdir = vPlanar.clone().normalize()
@@ -442,6 +563,22 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       const vdir = vPlanar.clone().normalize()
       const assist = Math.min(m * 5.0, maxTraction * 0.25)
       body.addForce({ x: -vdir.x * assist, y: 0, z: -vdir.z * assist }, true)
+    }
+
+    // 4) 초기 후진 임펄스 (정지에 가까울 때 1회성) - 입력 없이도 동작
+    if (frontBlocked && speed < 0.5 && frontUnstickCooldown.current <= 0) {
+      const J = m * 1.3
+      body.applyImpulse({ x: -tmp.forward.x * J, y: 0, z: -tmp.forward.z * J }, true)
+      frontUnstickCooldown.current = 0.3
+      if (import.meta.env?.DEV) console.log('[ReverseImpulse] J=', J.toFixed(1))
+    }
+
+    // 전방 회피 타이머 동안 조향 보조: 벽에서 살짝 튕겨나오며 방향 찾기 느낌
+    if (wallAvoidTimer.current > 0) {
+      const steerAssist = 0.7 * wallAvoidSteerSign.current
+      // 사용자 입력과 블렌딩하여 자연스럽게 회복
+      inputSmoothing.current.steer = lerp(inputSmoothing.current.steer, steerAssist, delta * 10)
+      wallAvoidTimer.current -= delta
     }
     
     // ===== 측면 미끄러짐 방지 =====
@@ -550,11 +687,11 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     maxSnap: 0.08,
   })
 
-  return (
-    <RigidBody
-      ref={ref || rigidBodyRef}
-      position={position}
-      rotation={rotation}
+    return (
+        <RigidBody
+          ref={ref || rigidBodyRef}
+          position={position}
+          rotation={rotation}
       type="dynamic"
       enabledRotations={[false, true, false]} // 2단계: Y축 회전(조향) 활성화
       linearDamping={0.25}
@@ -563,7 +700,27 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       colliders={false}
       ccd // CCD 활성화로 관통 방지
       onCollisionEnter={handleCollisionEnter}
-    >
+      >
+      {/* 디버그: 전방 레이 히트 지점 시각화 (빨간 점) */}
+      <mesh ref={frontHitMarkerRef as any} visible={false}>
+        <sphereGeometry args={[0.08, 12, 12]} />
+        <meshBasicMaterial color="#ff3333" />
+      </mesh>
+      {/* 전방 범퍼 센서: 고정 벽 감지용 (ray 보완) */}
+      <CuboidCollider
+        args={[0.08, 0.3, 0.45]}
+        position={[0.98, 0.6, 0]}
+        sensor
+        onIntersectionEnter={(e: IntersectionEnterPayload) => {
+          const rb = e.other.rigidBody
+          // 고정체(벽/트랙)만 frontBlocked로 인정
+          if (rb && rb.isFixed && rb.isFixed()) frontSensorBlocked.current = true
+        }}
+        onIntersectionExit={(e: IntersectionExitPayload) => {
+          const rb = e.other.rigidBody
+          if (rb && rb.isFixed && rb.isFixed()) frontSensorBlocked.current = false
+        }}
+      />
       {/* 메인 차체(중간) - 현실적인 질량을 위해 밀도 상향 */}
       <CuboidCollider
         args={[0.9, 0.25, 0.5]}

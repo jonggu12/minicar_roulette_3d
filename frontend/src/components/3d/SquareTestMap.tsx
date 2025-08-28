@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier'
+import { Physics, RigidBody, CuboidCollider, RapierRigidBody } from '@react-three/rapier'
 import PhysicsCar from './PhysicsCar'
 import RAPIER from '@dimforge/rapier3d-compat'
+import CameraController, { CameraView } from './CameraController'
 
 interface SquareTestMapProps {
   numCars?: number
@@ -12,6 +12,8 @@ interface SquareTestMapProps {
 const SquareTestMap: React.FC<SquareTestMapProps> = ({
   numCars = 1
 }) => {
+  const [cameraView, setCameraView] = useState<CameraView>(CameraView.OVERVIEW)
+  const playerCarRef = useRef<RapierRigidBody>(null)
   // 정사각형 맵 설정
   const mapSize = 120  // 120m x 120m 큰 정사각형
   const wallHeight = 3.0
@@ -72,11 +74,17 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
         <div style={{ marginTop: '10px', fontSize: '10px', opacity: 0.7 }}>
           <p>🎮 WASD: 차량 조작</p>
           <p>🛑 스페이스: 브레이크</p>
-          <p>🎥 마우스: 카메라 조작</p>
+          <p>🎥 V: 카메라 전환 (Overview/Follow)</p>
+          <p>🖱️ 휠: Follow에서 줌 인/아웃</p>
         </div>
       </div>
 
       <Canvas camera={{ position: [0, 60, 60], fov: 75 }}>
+        <CameraController 
+          currentView={cameraView}
+          playerCarRef={playerCarRef}
+          onViewChange={setCameraView}
+        />
         <ambientLight intensity={0.6} />
         <directionalLight position={[10, 20, 5]} intensity={1.2} />
         <directionalLight position={[-10, 15, -5]} intensity={0.8} />
@@ -253,6 +261,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
           {startPositions.slice(0, numCars).map((position, index) => (
             <PhysicsCar
               key={`car-${index}`}
+              ref={index === 0 ? playerCarRef : undefined}
               position={position}
               rotation={[0, 0, 0]}  // 정면 방향
               color={carColors[index % carColors.length]}
@@ -261,15 +270,6 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
               // 기본 물리 설정 사용 (테스트맵이므로 고성능 설정 불필요)
             />
           ))}
-
-          <OrbitControls 
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
-            target={[0, 0, 0]}
-            maxDistance={200}
-            minDistance={10}
-          />
         </Physics>
       </Canvas>
     </div>

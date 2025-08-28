@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { Physics } from '@react-three/rapier'
+import { Physics, RapierRigidBody } from '@react-three/rapier'
+import * as THREE from 'three'
 import Track from '../../Archive/Track'
 import PhysicsCar from './PhysicsCar'
 import WaypointVisualizer from './WaypointVisualizer'
 import CircularTrackBarriers from './CircularTrackBarriers'
+import CameraController, { CameraView } from './CameraController'
 import { TrackWaypointSystem } from './utils/waypointSystem'
 
 interface TestTrackWithWaypointsProps {
@@ -24,6 +25,8 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
   numCars = 4
 }) => {
   const [isDebugMode, setIsDebugMode] = useState(true)
+  const [cameraView, setCameraView] = useState<CameraView>(CameraView.OVERVIEW)
+  const playerCarRef = useRef<RapierRigidBody>(null)
 
   // Create waypoint system with wider track for better racing
   const waypointSystem = useMemo(() => {
@@ -192,7 +195,8 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
             <p>⚪ White line: Racing line</p>
             <p>🔴 Red oval: Outer barrier | 🔵 Blue oval: Inner barrier</p>
             <p>🏁 Checkered flag: Start/Finish line marker</p>
-            <p>🎮 WASD: Drive red car | Space: Brake | Mouse: Camera</p>
+            <p>🎮 WASD: Drive red car | Space: Brake | V: Camera view</p>
+            <p>📹 Current view: {cameraView === CameraView.OVERVIEW ? 'Overview' : 'Follow Car'}</p>
           </div>
         </div>
       )}
@@ -215,7 +219,13 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
         {isDebugMode ? 'Hide Debug' : 'Show Debug'}
       </button>
 
-      <Canvas camera={{ position: [0, 45, 45], fov: 65 }}>
+      <Canvas>
+        <CameraController 
+          currentView={cameraView}
+          playerCarRef={playerCarRef}
+          onViewChange={setCameraView}
+        />
+        
         <ambientLight intensity={0.6} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <directionalLight position={[-10, 10, -5]} intensity={0.5} />
@@ -242,6 +252,7 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
           {startPositions.slice(0, numCars).map((position, index) => (
             <PhysicsCar
               key={`car-${index}`}
+              ref={index === 0 ? playerCarRef : undefined} // First car is player car
               position={position}
               rotation={[0, Math.PI, 0]} // Face forward along track
               color={carColors[index % carColors.length]}
@@ -260,12 +271,6 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
             showNormals={showNormals}
           />
 
-          <OrbitControls 
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
-            target={[0, 0, 0]}
-          />
         </Physics>
       </Canvas>
     </div>
