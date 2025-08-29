@@ -19,6 +19,8 @@ interface PhysicsCarProps {
   maxSpeed?: number
   steerStrength?: number
   autoControl?: boolean
+  // 보조 혼합 비율(수동 모드에서 PP yawRate와 혼합). 0=순수 수동, 1=순수 PP
+  assistBlend?: number
   // autopilot 훅: 차량 상태→ { throttle(-1..1), yawRate(rad/s) 또는 steer(-1..1) }
   autopilot?: (state: {
     position: Vector3
@@ -66,6 +68,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   maxSpeed = 12,
   steerStrength = 850,
   autoControl = false,
+  assistBlend = 0.25,
   autopilot,
   mu = 0.7,
   enabledRotations,
@@ -473,6 +476,24 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
         ;(ai.current as any)._steerCmd = null
       }
     } else {
+      // 수동 모드에서도 보조용 yawRate 산출(있으면 혼합)
+      if (autopilot) {
+        const t = body.translation()
+        const q = body.rotation()
+        const t3 = 2.0 * (q.w * q.y + q.x * q.z)
+        const t4 = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        const yaw = Math.atan2(t3, t4)
+        const cmdA = autopilot({
+          position: new Vector3(t.x, t.y, t.z),
+          yaw,
+          velocity: new Vector3(tmp.v2.x, 0, tmp.v2.z),
+          speed,
+          dt: delta,
+        })
+        ;(ai.current as any)._assistYawRate = typeof cmdA.yawRate === 'number' ? cmdA.yawRate : null
+      } else {
+        ;(ai.current as any)._assistYawRate = null
+      }
       
       // 1) 원시 스로틀 커맨드 (-1..1)
       const rawThrottleCmd = (f ? 1 : 0) + (b ? -1 : 0)
@@ -658,18 +679,35 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     // autopilot이 yawRate 명시 시 이를 우선, 아니면 기존 steer 기반
     const yawRateCmd = (ai.current as any)._yawRateCmd
     const steerCmdAI = (ai.current as any)._steerCmd
-    let targetYaw = (typeof yawRateCmd === 'number')
-      ? Math.max(-yawRateMax, Math.min(yawRateMax, yawRateCmd))
-      : (typeof steerCmdAI === 'number')
-        ? steerCmdAI * yawRateMax * speedRatioSteer
-        : (steer * yawRateMax * speedRatioSteer)
-    // 작은 명령은 무시해 직진 안정화(데드밴드)
-    if (Math.abs(targetYaw) < 0.03) targetYaw = 0
+    const assistYaw = (ai.current as any)._assistYawRate
+    const hasAssist = !autoControl && typeof assistYaw === 'number' && isFinite(assistYaw as number)
+    const hasYawCmd = typeof yawRateCmd === 'number' && isFinite(yawRateCmd as number)
+    let targetYaw: number
+    if (typeof yawRateCmd === 'number') {
+      targetYaw = Math.max(-yawRateMax, Math.min(yawRateMax, yawRateCmd))
+    } else if (typeof steerCmdAI === 'number') {
+      targetYaw = steerCmdAI * yawRateMax * speedRatioSteer
+    } else {
+      // 수동 기반
+      const manualYaw = steer * yawRateMax * (autoControl ? speedRatioSteer : Math.max(0.35, speedRatioSteer))
+      if (hasAssist) {
+        const a = Math.max(0, Math.min(1, assistBlend))
+        const assistClamped = Math.max(-yawRateMax, Math.min(yawRateMax, assistYaw as number))
+        targetYaw = (1 - a) * manualYaw + a * assistClamped
+      } else {
+        targetYaw = manualYaw
+      }
+    }
+    // 작은 명령은 무시해 직진 안정화(데드밴드) - PP는 더 민감하게
+    const deadband = hasYawCmd ? 0.01 : 0.03
+    if (Math.abs(targetYaw) < deadband) targetYaw = 0
     const yawErr = targetYaw - av.y
     // 질량 스케일 보정: 무거울수록 더 큰 토크 필요 → 게인/캡을 질량비로 스케일
     const baseMass = 800
     const massRatio = m / baseMass
-    const yawGain = 650 * (0.6 + 0.4 * speedRatioSteer) * massRatio
+    let yawGain = 650 * (0.6 + 0.4 * speedRatioSteer) * massRatio
+    // PP 저속 턴인 보정: hasYawCmd && 저속에서 게인 소폭 증대
+    if (hasYawCmd && speed < 1.0) yawGain *= 1.3
     // P 제어(부호 교정)
     let pTerm = yawErr * yawGain
     // 선택적 AI 디버그: autopilot 요레이트 명령과 실제 비교
@@ -691,13 +729,18 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
 
     // 속도 페이드인: 저속에서 P 토크를 완만히 키움(피벗 회전 방지)
     const fadeLow = 0.2, fadeHigh = 1.0
-    const yawFade = clamp((speed - fadeLow) / (fadeHigh - fadeLow), 0, 1)
+    let yawFade = clamp((speed - fadeLow) / (fadeHigh - fadeLow), 0, 1)
     // 전진 성분 게이트: 전진 속도 성분이 작으면 P 토크를 더 줄임
     const speedForward = tmp.v2.dot(tmp.forward)
     let forwardGate = 1.0
     if (speedForward <= 0) forwardGate = 0.3
     else if (speedForward < 0.2) forwardGate = 0.35
     else if (speedForward < 0.5) forwardGate = 0.7
+    // PP는 정지/저속에서도 회전력 확보를 위해 하한 보장
+    if (hasYawCmd) {
+      yawFade = Math.max(yawFade, 0.6)
+      forwardGate = Math.max(forwardGate, 0.6)
+    }
 
     pTerm *= yawFade * forwardGate
     let torqueY = pTerm + dTerm
@@ -708,9 +751,9 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     // 조향 조건: autopilot의 yawRate 명령이 있거나 사용자 steer 입력이 있으면 토크 적용
     // throttle 유무와 무관하게 조향 가능하도록 수정
     const hasThrottle = Math.abs(targetThrottle) > 0.05
-    const hasYawCmd = typeof yawRateCmd === 'number' && isFinite(yawRateCmd as number)
     const wantYaw = hasYawCmd || Math.abs(steer) > 0.01
-    if (wantYaw && (speed > minSteerSpeed || hasYawCmd) && Math.abs(torqueY) > 1e-3) {
+    // 수동 모드에서는 속도 문턱 없이 조향 토크 허용
+    if (wantYaw && (hasYawCmd || (!autoControl || speed > minSteerSpeed)) && Math.abs(torqueY) > 1e-3) {
       body.addTorque({ x: 0, y: torqueY, z: 0 }, true)
     } else if (Math.abs(av.y) > 0.02) {
       const dampingOnly = -av.y * (dampingGain * 1.0)

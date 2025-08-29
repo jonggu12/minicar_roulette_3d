@@ -59,8 +59,9 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
     kV: 0.9,
     LdMin: 0.8,
     LdMax: 6.0,
-    rMax: 1.7,
-    rRate: 2.0,
+    // 오벌: 상한 조금 더, 레이트리밋 상향
+    rMax: 1.8,
+    rRate: 3.5,
     mu: 0.7,
     g: 9.81,
   }), [])

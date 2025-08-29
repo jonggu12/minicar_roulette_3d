@@ -29,6 +29,8 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   const [pathType, setPathType] = useState<PathType>('straight')
   // 차량 내부 상태까지 초기화하기 위한 리마운트 키
   const [carResetKey, setCarResetKey] = useState(0)
+  // 제어 모드: AI 또는 사용자 입력(WASD)
+  const [isAIControl, setIsAIControl] = useState(true)
   // 현재 웨이포인트 제공자 (직선 2/3, 코너 1/3 구성)
   const currentSystem = useMemo(() => {
     const startX = -mapSize / 2 + START_MARGIN
@@ -47,13 +49,14 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   // PP 파라미터(직선용)
   const ppParams: PPParams = useMemo(() => ({
     L: 1.8,
-    // 룩어헤드: 기본 2.0m, 속도 계수 1.0으로 상향
-    L0: 2.0,
-    kV: 1.0,
+    // 턴-인 반응과 안정성 균형
+    L0: 1.4,
+    kV: 0.9,
     LdMin: 0.8,
     LdMax: 8.0,
-    rMax: 1.0,
-    rRate: 2.5,
+    // 요레이트 상한/레이트리밋 완화
+    rMax: 1.4,
+    rRate: 4.0,
     mu: 0.8,
     g: 9.81,
   }), [])
@@ -168,6 +171,40 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
               {t === 'straight' ? '직선' : t === 'right' ? '우회전' : '좌회전'}
             </button>
           ))}
+        </div>
+
+        {/* 제어 모드 토글 */}
+        <div style={{ marginTop: '8px', display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => {
+              if (!isAIControl) return
+              setIsAIControl(false)
+              setCarResetKey((k) => k + 1)
+              aiStates.current = []
+              ppDebugRef.current.look = undefined
+            }}
+            style={{
+              padding: '8px 10px',
+              background: !isAIControl ? '#4CAF50' : 'rgba(255,255,255,0.9)',
+              color: !isAIControl ? '#fff' : '#333',
+              border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12
+            }}
+          >수동(WASD)</button>
+          <button
+            onClick={() => {
+              if (isAIControl) return
+              setIsAIControl(true)
+              setCarResetKey((k) => k + 1)
+              aiStates.current = []
+              ppDebugRef.current.look = undefined
+            }}
+            style={{
+              padding: '8px 10px',
+              background: isAIControl ? '#4CAF50' : 'rgba(255,255,255,0.9)',
+              color: isAIControl ? '#fff' : '#333',
+              border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12
+            }}
+          >AI(Pure Pursuit)</button>
         </div>
       </div>
 
@@ -379,15 +416,16 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
             </mesh>
           )}
 
-          {/* AI 차량 1대: 출발선 좌측 약간 뒤에서 시작 */}
+          {/* 차량 1대: AI 또는 수동 (수동 시에도 PP yawRate를 보조로 혼합) */}
           <PhysicsCar
-            key={`car-ai-pp-${pathType}-${carResetKey}`}
+            key={`car-${isAIControl ? 'ai' : 'manual'}-${pathType}-${carResetKey}`}
             ref={playerCarRef}
             position={[(-mapSize/2) + START_MARGIN - 2, 0.5, 0]}
             rotation={[0, 0, 0]}
-            color={'#ff4444'}
-            name={`AI-PP`}
-            autoControl={true}
+            color={isAIControl ? '#ff4444' : '#44ff44'}
+            name={isAIControl ? 'AI-PP' : 'Manual'}
+            autoControl={isAIControl}
+            assistBlend={isAIControl ? 0.0 : 0.25}
             maxSpeed={14}
             engineForce={5200}
             mu={0.8}

@@ -95,11 +95,39 @@ export function purePursuitController(
   const look = getLookaheadPoint(system, state.pos, Ld)
   const to = new THREE.Vector2(look.x - state.pos.x, look.z - state.pos.z)
   // X-forward 기준: yaw=0 → +X, yaw 증가 → +Z 방향
-  const alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
+  let alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
+  // 알파 데드밴드(속도 의존): 직선에서 소각 진동 억제
+  const alphaDbDeg = THREE.MathUtils.lerp(1.2, 0.6, THREE.MathUtils.clamp(Math.abs(v)/12, 0, 1))
+  const alphaDb = THREE.MathUtils.degToRad(alphaDbDeg)
+  if (Math.abs(alpha) < alphaDb) alpha = 0
   // 자전거 모델 곡률
   const kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
-  // 요레이트 목표(속도 * 곡률) - 좌표계 정합을 위해 부호 반전
-  let rCmd = -v * kappa
+  // 크로스트랙 보정: 최근접 세그먼트의 좌측 기준 횡오차(eY)
+  let eY = 0
+  const wpsLocal = system.getWaypoints()
+  if (wpsLocal.length >= 2) {
+    const idxN = findNearestIndex(system, state.pos)
+    if (idxN >= 0) {
+      const j = (idxN + 1) % wpsLocal.length
+      const p0 = wpsLocal[idxN].position
+      const p1 = wpsLocal[j].position
+      const seg = new THREE.Vector2(p1.x - p0.x, p1.z - p0.z)
+      if (seg.lengthSq() > 1e-6) {
+        seg.normalize()
+        const nL = new THREE.Vector2(-seg.y, seg.x) // left normal
+        const rel = new THREE.Vector2(state.pos.x - p0.x, state.pos.z - p0.z)
+        eY = rel.dot(nL)
+      }
+    }
+  }
+  const kEy = 0.15
+  const rCrosstrack = kEy * (eY / Math.max(1, Math.abs(v)))
+  // 요레이트 목표(속도 * 곡률) - 좌표계 정합을 위해 부호 반전 + 횡오차 보정
+  const rCmdRaw = -v * kappa + rCrosstrack
+  // 저역통과로 급격한 변화 완화 (속도 의존)
+  const rPrev = prev.yawRate
+  const beta = THREE.MathUtils.clamp(0.25 + 0.35 * (Math.abs(v)/12), 0.15, 0.7)
+  let rCmd = rPrev + beta * (rCmdRaw - rPrev)
   // 횡가속 한계 기반의 속도 상한 보정: ay = v^2 * |kappa| <= mu*g
   const ayMax = mu * g
   if (Math.abs(kappa) > 1e-5) {
@@ -110,7 +138,6 @@ export function purePursuitController(
     }
   }
   // 레이트 리밋
-  const rPrev = prev.yawRate
   const rStep = rRate * state.dt
   rCmd = clamp(rCmd, rPrev - rStep, rPrev + rStep)
   rCmd = clamp(rCmd, -rMax, rMax)
