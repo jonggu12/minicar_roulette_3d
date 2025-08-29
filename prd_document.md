@@ -54,7 +54,7 @@ Input names (with optional weights) → Spawn mini cars → AI-controlled race w
 ### 3.2 Race Mechanics
 - **Fair AI**: Identical AI parameters for all cars
 - **Physics**: Consistent physics engine (Rapier/Ammo.js)
-- **Track System**: Spline-based waypoint following with PID steering
+- **Track System**: Spline-based waypoint following with Pure Pursuit steering (lookahead-based)
 - **Collision**: Fair collision detection with identical material properties
 
 ### 3.3 Fairness System
@@ -146,7 +146,7 @@ Input names (with optional weights) → Spawn mini cars → AI-controlled race w
 
 ### 7.2 Reproducibility
 - **Deterministic Physics**: Fixed timestep, consistent parameters
-- **Identical AI**: Same waypoint following, PID parameters
+- **Identical AI**: Same waypoint following, Pure Pursuit parameters
 - **Seed-based Randomness**: All random events use committed seed
 - **Export Format**: JSON with all race parameters and results
 

@@ -8,6 +8,7 @@ import WaypointVisualizer from './WaypointVisualizer'
 import CircularTrackBarriers from './CircularTrackBarriers'
 import CameraController, { CameraView } from './CameraController'
 import { TrackWaypointSystem } from './utils/waypointSystem'
+import { purePursuitController, PPParams } from './utils/purePursuit'
 
 interface TestTrackWithWaypointsProps {
   showWaypoints?: boolean
@@ -27,6 +28,7 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
   const [isDebugMode, setIsDebugMode] = useState(true)
   const [cameraView, setCameraView] = useState<CameraView>(CameraView.OVERVIEW)
   const playerCarRef = useRef<RapierRigidBody>(null)
+  const aiStates = useRef<{ yawRate: number }[]>([])
 
   // Create waypoint system with wider track for better racing
   const waypointSystem = useMemo(() => {
@@ -47,6 +49,19 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
       }
     )
   }, [])
+
+  // PP 파라미터(초기값)
+  const ppParams: PPParams = useMemo(() => ({
+    L: 1.8,
+    L0: 1.0,
+    kV: 0.6,
+    LdMin: 0.8,
+    LdMax: 6.0,
+    rMax: 1.7,
+    rRate: 4.0,
+    mu: 0.7,
+    g: 9.81,
+  }), [])
 
   // Generate starting positions along the start/finish line
   const startPositions = useMemo(() => {
@@ -230,7 +245,7 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <directionalLight position={[-10, 10, -5]} intensity={0.5} />
 
-        <Physics gravity={[0, -9.81, 0]} debug={true}>
+        <Physics gravity={[0, -9.81, 0]} timeStep={1/60} debug={true}>
           {/* Track - much wider for better racing */}
           <Track 
             innerRadius={12}         // Keep same
@@ -252,13 +267,28 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
           {startPositions.slice(0, numCars).map((position, index) => (
             <PhysicsCar
               key={`car-${index}`}
-              ref={index === 0 ? playerCarRef : undefined} // First car is player car
+              ref={index === 0 ? playerCarRef : undefined}
               position={position}
-              rotation={[0, Math.PI, 0]} // Face forward along track
+              rotation={[0, Math.PI, 0]}
               color={carColors[index % carColors.length]}
               name={`Car ${index + 1}`}
-              autoControl={index > 0} // First car is player controlled, others are AI
-              // 기본값(느린 속도/부드러운 조향)을 사용하도록 고성능 오버라이드 제거
+              autoControl={index > 0}
+              mu={0.7}
+              autopilot={index > 0 ? ((st) => {
+                // AI별 레이트 리밋 상태 저장
+                if (!aiStates.current[index]) aiStates.current[index] = { yawRate: 0 }
+                const prev = aiStates.current[index]
+                const cmd = purePursuitController(waypointSystem, {
+                  pos: st.position,
+                  yaw: st.yaw,
+                  vel: st.velocity,
+                  speed: st.speed,
+                  dt: st.dt,
+                }, prev, ppParams)
+                // 업데이트
+                prev.yawRate = cmd.yawRate
+                return { throttle: cmd.throttle, yawRate: cmd.yawRate }
+              }) : undefined}
             />
           ))}
 

@@ -311,9 +311,9 @@
           },
           {
             "id": 14,
-            "title": "Implement PID Steering Controller",
-            "description": "Create PID controller for smooth waypoint following and steering control",
-            "details": "Implement a PID (Proportional-Integral-Derivative) controller for AI steering. Calculate angle difference between car heading and target waypoint direction. Apply PID control with configurable Kp, Ki, Kd parameters for smooth and stable steering behavior. Include angle normalization and deadzone handling.",
+            "title": "Implement Pure Pursuit Steering Controller",
+            "description": "Create Pure Pursuit controller with lookahead-based curvature and yaw-rate limiting",
+            "details": "Implement a Pure Pursuit controller for AI steering. Compute a lookahead point along the waypoint path with Ld = clamp(L0 + kV*|v|, LdMin, LdMax). Derive curvature κ = 2*sin(α)/Ld and target yaw-rate r = v*κ. Apply yaw-rate saturation |r| ≤ rMax and rate limit |dr/dt| ≤ rRate. Clamp lateral acceleration with μ·g by limiting v and r accordingly. Control throttle via simple P-control to track v_target = min(waypoint targetSpeed, sqrt(μ*g/|κ|)).",
             "status": "pending",
             "dependencies": [],
             "parentTaskId": 3

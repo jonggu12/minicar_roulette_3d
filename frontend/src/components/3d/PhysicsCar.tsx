@@ -19,6 +19,16 @@ interface PhysicsCarProps {
   maxSpeed?: number
   steerStrength?: number
   autoControl?: boolean
+  // autopilot 훅: 차량 상태→ { throttle(-1..1), yawRate(rad/s) 또는 steer(-1..1) }
+  autopilot?: (state: {
+    position: Vector3
+    yaw: number
+    velocity: Vector3
+    speed: number
+    dt: number
+  }) => { throttle: number; yawRate?: number; steer?: number }
+  // 동역학 트랙션 한계 계산용 마찰계수(μ)
+  mu?: number
   controlKeys?: {
     forward: string
     backward: string
@@ -55,6 +65,8 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   maxSpeed = 9,
   steerStrength = 850,
   autoControl = false,
+  autopilot,
+  mu = 0.7,
   controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' },
   onCollision
 }, ref) => {
@@ -431,8 +443,33 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     
     if (autoControl) {
       ai.current.t += delta
-      targetThrottle = 0.3 // 자동 제어시 약간만
-      targetSteer = 0 // 직진
+      // 외부 autopilot 훅이 있으면 사용
+      if (autopilot) {
+        const t = body.translation()
+        const q = body.rotation()
+        // yaw 추출
+        const ysqr = q.y * q.y
+        const t3 = +2.0 * (q.w * q.y + q.z * q.x)
+        const t4 = +1.0 - 2.0 * (ysqr + q.x * q.x)
+        const yaw = Math.atan2(t3, t4)
+        const cmd = autopilot({
+          position: new Vector3(t.x, t.y, t.z),
+          yaw,
+          velocity: new Vector3(tmp.v2.x, 0, tmp.v2.z),
+          speed,
+          dt: delta,
+        })
+        targetThrottle = Math.max(-1, Math.min(1, cmd.throttle))
+        // autopilot이 yawRate를 줄 경우 이후 요 제어에서 직접 사용하도록 저장
+        ;(ai.current as any)._yawRateCmd = typeof cmd.yawRate === 'number' ? cmd.yawRate : null
+        ;(ai.current as any)._steerCmd = typeof cmd.steer === 'number' ? cmd.steer : null
+      } else {
+        // 기본 자동 제어(유지)
+        targetThrottle = 0.3
+        targetSteer = 0
+        ;(ai.current as any)._yawRateCmd = null
+        ;(ai.current as any)._steerCmd = null
+      }
     } else {
       
       // 1) 원시 스로틀 커맨드 (-1..1)
@@ -496,7 +533,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
 
     // ===== 추진/제동 시스템 =====
     const m = (body as any).mass ? (body as any).mass() : 800
-    const maxTraction = m * 9.81 * 0.95
+    const maxTraction = m * 9.81 * mu // μ·N 기반 트랙션 한계(보수적)
 
     // 추진력 (엔진)
     // 3) 정면 차단 시 전진 출력 차단
@@ -509,6 +546,12 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     }
     // 후진 부스트: 정면 차단 + 후진 입력 시 초기 탈출력 강화 (상향)
     let reverseBoost = frontBlocked && b && driveThrottle < 0
+    // autopilot의 음수 스로틀은 제동으로 해석(후진 의도 제외)
+    if (autoControl && driveThrottle < 0 && speed > 0.2) {
+      const vdir = tmp.v2.clone().normalize()
+      const brakeMag = Math.min(brakeForce * Math.abs(driveThrottle), maxTraction)
+      body.addForce({ x: -vdir.x * brakeMag, y: 0, z: -vdir.z * brakeMag }, true)
+    }
     let driveForce = engineForce * (reverseBoost ? driveThrottle * 1.6 : driveThrottle)
     driveForce = Math.max(-maxTraction, Math.min(maxTraction, driveForce))
 
@@ -609,8 +652,15 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     // 목표 요레이트 기반 P-제어로 조향 토크를 제한: 저속/정지에서 과토크 방지
     const minSteerSpeed = 0.9
     const speedRatioSteer = clamp((speed - minSteerSpeed) / maxSteerSpeed, 0, 1)
-    const yawRateMax = 1.7 // rad/s, 요레이트 상한 추가 축소
-    const targetYaw = steer * yawRateMax * speedRatioSteer
+    const yawRateMax = 1.7 // rad/s, 요레이트 상한
+    // autopilot이 yawRate 명시 시 이를 우선, 아니면 기존 steer 기반
+    const yawRateCmd = (ai.current as any)._yawRateCmd
+    const steerCmdAI = (ai.current as any)._steerCmd
+    let targetYaw = (typeof yawRateCmd === 'number')
+      ? Math.max(-yawRateMax, Math.min(yawRateMax, yawRateCmd))
+      : (typeof steerCmdAI === 'number')
+        ? steerCmdAI * yawRateMax * speedRatioSteer
+        : (steer * yawRateMax * speedRatioSteer)
     const yawErr = targetYaw - av.y
     // 질량 스케일 보정: 무거울수록 더 큰 토크 필요 → 게인/캡을 질량비로 스케일
     const baseMass = 800

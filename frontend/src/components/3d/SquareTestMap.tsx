@@ -2,8 +2,11 @@ import React, { useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Physics, RigidBody, CuboidCollider, RapierRigidBody } from '@react-three/rapier'
 import PhysicsCar from './PhysicsCar'
-import RAPIER from '@dimforge/rapier3d-compat'
+import * as RAPIER from '@dimforge/rapier3d-compat'
 import CameraController, { CameraView } from './CameraController'
+import * as THREE from 'three'
+import { purePursuitController, PPParams } from './utils/purePursuit'
+import { StraightWaypointSystem } from './utils/straightWaypointSystem'
 
 interface SquareTestMapProps {
   numCars?: number
@@ -18,6 +21,28 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   const mapSize = 120  // 120m x 120m 큰 정사각형
   const wallHeight = 3.0
   const wallThickness = 2.0
+
+  // 직선 웨이포인트(서→동) 생성
+  const straightSystem = useMemo(() => {
+    const start = new THREE.Vector3(-40, 0, 0)
+    const end = new THREE.Vector3(40, 0, 0)
+    return new StraightWaypointSystem(start, end, 2.0, 12)
+  }, [])
+
+  // PP 파라미터(직선용)
+  const ppParams: PPParams = useMemo(() => ({
+    L: 1.8,
+    L0: 1.0,
+    kV: 0.6,
+    LdMin: 0.8,
+    LdMax: 6.0,
+    rMax: 1.2,
+    rRate: 5.0,
+    mu: 0.7,
+    g: 9.81,
+  }), [])
+
+  const aiStates = useRef<{ yawRate: number }[]>([])
 
   // 시작 위치들 - 맵 중앙 근처에 격자 배치
   const startPositions = useMemo(() => {
@@ -89,7 +114,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
         <directionalLight position={[10, 20, 5]} intensity={1.2} />
         <directionalLight position={[-10, 15, -5]} intensity={0.8} />
 
-        <Physics gravity={[0, -9.81, 0]} debug={true}>
+        <Physics gravity={[0, -9.81, 0]} timeStep={1/60} debug={true}>
           {/* 바닥면 */}
           <RigidBody type="fixed" position={[0, -0.1, 0]} colliders={false}>
             <CuboidCollider
@@ -220,17 +245,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
             </mesh>
           </RigidBody>
 
-          {/* 중앙 마커 (원점 표시) */}
-          <RigidBody type="fixed" position={[0, 1, 0]} colliders={false}>
-            <mesh>
-              <sphereGeometry args={[0.5, 8, 8]} />
-              <meshStandardMaterial 
-                color="#FF5722" 
-                emissive="#FF5722" 
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-          </RigidBody>
+          {/* 중앙 마커 제거: 직선 테스트 간섭 방지 */}
 
           {/* 몇 개 장애물 추가 (선택적 테스트용) */}
           <RigidBody type="fixed" position={[20, 1, 20]} colliders={false}>
@@ -257,19 +272,55 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
             </mesh>
           </RigidBody>
 
-          {/* 차량들 */}
-          {startPositions.slice(0, numCars).map((position, index) => (
-            <PhysicsCar
-              key={`car-${index}`}
-              ref={index === 0 ? playerCarRef : undefined}
-              position={position}
-              rotation={[0, 0, 0]}  // 정면 방향
-              color={carColors[index % carColors.length]}
-              name={`TestCar ${index + 1}`}
-              autoControl={index > 0}  // 첫 번째만 플레이어 제어
-              // 기본 물리 설정 사용 (테스트맵이므로 고성능 설정 불필요)
-            />
+          {/* 출발/도착선 */}
+          <RigidBody type="fixed" position={[-40, 0.01, 0]} colliders={false}>
+            <mesh rotation={[-Math.PI/2, 0, 0]}>
+              <planeGeometry args={[6, 1]} />
+              <meshStandardMaterial color="#00ff00" transparent opacity={0.8} />
+            </mesh>
+          </RigidBody>
+          <RigidBody type="fixed" position={[40, 0.01, 0]} colliders={false}>
+            <mesh rotation={[-Math.PI/2, 0, 0]}>
+              <planeGeometry args={[6, 1]} />
+              <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
+            </mesh>
+          </RigidBody>
+
+          {/* 직선 웨이포인트 시각화 */}
+          {straightSystem.getWaypoints().map((wp, i) => (
+            <RigidBody key={`wp-${i}`} type="fixed" position={[wp.position.x, 0.05, wp.position.z]} colliders={false}>
+              <mesh>
+                <sphereGeometry args={[0.15, 10, 10]} />
+                <meshStandardMaterial color={i === 0 ? '#00ff00' : (i === straightSystem.getWaypoints().length-1 ? '#ffffff' : '#2196f3')} />
+              </mesh>
+            </RigidBody>
           ))}
+
+          {/* AI 차량 1대: 출발선 좌측 약간 뒤에서 시작 */}
+          <PhysicsCar
+            key={`car-ai-pp`}
+            ref={playerCarRef}
+            position={[-42, 0.5, 0]}
+            rotation={[0, 0, 0]}
+            color={'#ff4444'}
+            name={`AI-PP`}
+            autoControl={true}
+            maxSpeed={12}
+            mu={0.7}
+            autopilot={(st) => {
+              if (!aiStates.current[0]) aiStates.current[0] = { yawRate: 0 }
+              const prev = aiStates.current[0]
+              const cmd = purePursuitController(straightSystem, {
+                pos: st.position,
+                yaw: st.yaw,
+                vel: st.velocity,
+                speed: st.speed,
+                dt: st.dt,
+              }, prev, ppParams)
+              prev.yawRate = cmd.yawRate
+              return { throttle: cmd.throttle, yawRate: cmd.yawRate }
+            }}
+          />
         </Physics>
       </Canvas>
     </div>
