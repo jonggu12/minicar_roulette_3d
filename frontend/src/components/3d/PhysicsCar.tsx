@@ -650,8 +650,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     // 속도 기반 조향 스케일링 (더 부드럽고 반응적으로)
     const maxSteerSpeed = 8
     // 목표 요레이트 기반 P-제어로 조향 토크를 제한: 저속/정지에서 과토크 방지
-    // 최소 조향 유효 속도 완화: 출발 직후 회전 시작 가능
-    const minSteerSpeed = 0.3
+    const minSteerSpeed = 0.9
     const speedRatioSteer = clamp((speed - minSteerSpeed) / maxSteerSpeed, 0, 1)
     const yawRateMax = 1.7 // rad/s, 요레이트 상한
     // autopilot이 yawRate 명시 시 이를 우선, 아니면 기존 steer 기반

@@ -27,6 +27,8 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
 
   type PathType = 'straight' | 'right' | 'left'
   const [pathType, setPathType] = useState<PathType>('straight')
+  // 차량 내부 상태까지 초기화하기 위한 리마운트 키
+  const [carResetKey, setCarResetKey] = useState(0)
   // 현재 웨이포인트 제공자 (직선 2/3, 코너 1/3 구성)
   const currentSystem = useMemo(() => {
     const startX = -mapSize / 2 + START_MARGIN
@@ -148,7 +150,14 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
           {(['straight','right','left'] as const).map((t) => (
             <button
               key={t}
-              onClick={() => { setPathType(t); setTimeout(respawnAI, 0) }}
+              onClick={() => {
+                // 경로 변경: 차량 컴포넌트를 리마운트하여 내부 상태까지 초기화
+                setPathType(t)
+                setCarResetKey((k) => k + 1)
+                // 외부 AI 상태/디버그 포인트도 초기화
+                aiStates.current = []
+                ppDebugRef.current.look = undefined
+              }}
               style={{
                 padding: '8px 10px',
                 background: pathType === t ? '#4CAF50' : 'rgba(255,255,255,0.9)',
@@ -372,7 +381,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
 
           {/* AI 차량 1대: 출발선 좌측 약간 뒤에서 시작 */}
           <PhysicsCar
-            key={`car-ai-pp`}
+            key={`car-ai-pp-${pathType}-${carResetKey}`}
             ref={playerCarRef}
             position={[(-mapSize/2) + START_MARGIN - 2, 0.5, 0]}
             rotation={[0, 0, 0]}

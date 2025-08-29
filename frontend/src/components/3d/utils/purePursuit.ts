@@ -98,8 +98,8 @@ export function purePursuitController(
   const alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
   // 자전거 모델 곡률
   const kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
-  // 요레이트 목표(속도 * 곡률)
-  let rCmd = v * kappa
+  // 요레이트 목표(속도 * 곡률) - 좌표계 정합을 위해 부호 반전
+  let rCmd = -v * kappa
   // 횡가속 한계 기반의 속도 상한 보정: ay = v^2 * |kappa| <= mu*g
   const ayMax = mu * g
   if (Math.abs(kappa) > 1e-5) {
