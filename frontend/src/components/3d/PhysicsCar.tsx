@@ -4,7 +4,7 @@ import * as RAPIER from '@dimforge/rapier3d-compat'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, Mesh } from 'three'
 import Car from './Car'
-import useGroundAssist, { GroundAssistOptions } from './utils/useGroundAssist'
+import useGroundAssist from './utils/useGroundAssist'
 
 interface PhysicsCarProps {
   position?: [number, number, number]
@@ -29,7 +29,6 @@ interface PhysicsCarProps {
   }) => { throttle: number; yawRate?: number; steer?: number }
   // 동역학 트랙션 한계 계산용 마찰계수(μ)
   mu?: number
-  groundAssistOptions?: Partial<GroundAssistOptions>
   enabledRotations?: [boolean, boolean, boolean]
   controlKeys?: {
     forward: string
@@ -69,7 +68,6 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   autoControl = false,
   autopilot,
   mu = 0.7,
-  groundAssistOptions,
   enabledRotations,
   controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' },
   onCollision
@@ -749,14 +747,6 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       body.setLinvel({ x: lv.x, y: Math.sign(lv.y) * 16, z: lv.z }, true)
     }
 
-    // 6.5) 롤/피치 각속도 캡: 경사/착지 맵에서 뒤집힘 억제
-    const angNow = body.angvel()
-    const maxRollPitchRate = 4.0 // rad/s
-    const clampRP = (v: number) => Math.max(-maxRollPitchRate, Math.min(maxRollPitchRate, v))
-    if (Math.abs(angNow.x) > maxRollPitchRate || Math.abs(angNow.z) > maxRollPitchRate) {
-      body.setAngvel({ x: clampRP(angNow.x), y: angNow.y, z: clampRP(angNow.z) }, true)
-    }
-
     // 7) 속도 하드캡
     // 하드캡을 타이트하게 조정하여 최고속 근처에서 과도한 가속 억제
     const hardMax = maxSpeed * 1.05
@@ -766,7 +756,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     }
   })
 
-  // Ground assist: 휠 센서 위치와 하부 콜라이더에 맞춰 보정 (옵션 병합)
+  // Ground assist: 휠 센서 위치와 하부 콜라이더에 맞춰 보정
   useGroundAssist(rigidBodyRef, {
     enable: true,
     debug: false,
@@ -779,7 +769,6 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     bodyHalfHeight: 0.05, // 가장 낮은 콜라이더 바닥까지의 로컬 거리(≈0.05)
     targetGap: 0.04,
     maxSnap: 0.08,
-    ...(groundAssistOptions || {}),
   })
 
     return (

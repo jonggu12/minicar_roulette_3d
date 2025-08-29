@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Physics, RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
@@ -10,9 +10,7 @@ const SlopeTestMap: React.FC = () => {
   const carRef = useRef<RapierRigidBody>(null)
 
   // Assist toggles
-  const [alignToSlope, setAlignToSlope] = useState(true)
-  const [softLanding, setSoftLanding] = useState(true)
-  const [dynamicSnap, setDynamicSnap] = useState(true)
+  // 경사/착지 보조 제거됨: 단순 비교 토글 제거
 
   // Respawn helper
   const respawn = () => {
@@ -43,11 +41,7 @@ const SlopeTestMap: React.FC = () => {
         fontFamily: 'monospace', fontSize: 12, border: '1px solid rgba(255,255,255,0.2)'
       }}>
         <h3 style={{ margin: '0 0 8px 0', color: '#4CAF50' }}>⛰️ 경사/착지 테스트</h3>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-          <label><input type="checkbox" checked={alignToSlope} onChange={e=>setAlignToSlope(e.target.checked)} /> 경사 정렬</label>
-          <label><input type="checkbox" checked={softLanding} onChange={e=>setSoftLanding(e.target.checked)} /> 부드러운 착지</label>
-          <label><input type="checkbox" checked={dynamicSnap} onChange={e=>setDynamicSnap(e.target.checked)} /> 동적 스냅</label>
-        </div>
+        <div style={{ marginBottom: 8 }}>R: 리스폰, V: 카메라 전환, WASD: 수동 조작</div>
         <div style={{ fontSize: 11, opacity: 0.8 }}>
           R: 리스폰, V: 카메라 전환, WASD: 수동 조작
         </div>
@@ -103,20 +97,10 @@ const SlopeTestMap: React.FC = () => {
             color={'#ff8844'}
             name={'AI-Slope'}
             autoControl={true}
-            enabledRotations={[true, true, true]} // pitch/roll 허용
+            enabledRotations={[false, true, false]}
             maxSpeed={14}
             engineForce={5200}
             mu={0.9}
-            groundAssistOptions={{
-              alignToSlope,
-              softLanding,
-              dynamicSnap,
-              maxTiltDeg: 14,
-              slopeSlerp: 0.18,
-              preLandingDist: 1.6,
-              maxDownVel: 6.5,
-              landingDampingTime: 0.28,
-            }}
             autopilot={() => ({ throttle: 0.6 })}
           />
         </Physics>

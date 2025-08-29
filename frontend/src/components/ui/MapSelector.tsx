@@ -23,7 +23,7 @@ const mapConfigs: MapConfig[] = [
   ,{
     id: 'slope',
     name: '경사/착지 테스트 맵',
-    description: '경사 정렬 · 소프트 랜딩 검증\nR로 리스폰, 옵션 토글 제공'
+    description: '경사 및 점프 지형 주행 테스트\nR로 리스폰'
   }
 ]
 
