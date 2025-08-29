@@ -64,12 +64,16 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   const aiStates = useRef<{ yawRate: number; vTarget?: number }[]>([])
   const ppDebugRef = useRef<{ look?: THREE.Vector3 }>({})
 
-  // R 키로 차량만 리스폰 (선택된 경로 유지)
+  // R 키로 차량 완전 초기화(컴포넌트 리마운트) - 경로/모드는 유지
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'r') {
         e.preventDefault()
-        respawnAI()
+        // 내부 상태까지 초기화하기 위해 리마운트 키 증가
+        setCarResetKey((k) => k + 1)
+        // 외부 AI 상태/디버그 포인트도 초기화
+        aiStates.current = []
+        ppDebugRef.current.look = undefined
       }
     }
     window.addEventListener('keydown', onKey)
