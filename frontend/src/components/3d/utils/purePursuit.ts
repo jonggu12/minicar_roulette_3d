@@ -91,17 +91,28 @@ export function purePursuitController(
 ): AutoCmd {
   const { L, L0, kV, LdMin, LdMax, rMax, rRate, mu, g } = params
   const v = state.speed
-  const Ld = clamp(L0 + kV * Math.abs(v), LdMin, LdMax)
-  const look = getLookaheadPoint(system, state.pos, Ld)
-  const to = new THREE.Vector2(look.x - state.pos.x, look.z - state.pos.z)
+  let Ld = clamp(L0 + kV * Math.abs(v), LdMin, LdMax)
+  // 1차 추정으로 alpha/kappa 계산 후, 코너 적응형 룩어헤드로 보정한 뒤 다시 계산
+  let look = getLookaheadPoint(system, state.pos, Ld)
+  let to = new THREE.Vector2(look.x - state.pos.x, look.z - state.pos.z)
   // X-forward 기준: yaw=0 → +X, yaw 증가 → +Z 방향
   let alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
-  // 알파 데드밴드(속도 의존): 직선에서 소각 진동 억제
-  const alphaDbDeg = THREE.MathUtils.lerp(1.2, 0.6, THREE.MathUtils.clamp(Math.abs(v)/12, 0, 1))
+  // 알파 데드밴드(속도 의존): 직선에서 소각 진동 억제(더 민감)
+  const alphaDbDeg = THREE.MathUtils.lerp(0.8, 0.5, THREE.MathUtils.clamp(Math.abs(v)/12, 0, 1))
   const alphaDb = THREE.MathUtils.degToRad(alphaDbDeg)
   if (Math.abs(alpha) < alphaDb) alpha = 0
   // 자전거 모델 곡률
-  const kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
+  let kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
+  // 코너 적응형 룩어헤드: 곡률이 큰 구간에서는 룩어헤드를 줄여 턴-인 강화
+  const cLd = 0.5
+  const LdEff = Ld / (1 + cLd * Math.abs(kappa))
+  if (Math.abs(LdEff - Ld) > 1e-3) {
+    Ld = THREE.MathUtils.clamp(LdEff, LdMin, LdMax)
+    look = getLookaheadPoint(system, state.pos, Ld)
+    to = new THREE.Vector2(look.x - state.pos.x, look.z - state.pos.z)
+    alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
+    kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
+  }
   // 크로스트랙 보정: 최근접 세그먼트의 좌측 기준 횡오차(eY)
   let eY = 0
   const wpsLocal = system.getWaypoints()
@@ -120,16 +131,23 @@ export function purePursuitController(
       }
     }
   }
-  const kEy = 0.15
+  const kEy = 0.22
   const rCrosstrack = kEy * (eY / Math.max(1, Math.abs(v)))
   // 요레이트 목표(속도 * 곡률) - 좌표계 정합을 위해 부호 반전 + 횡오차 보정
   const rCmdRaw = -v * kappa + rCrosstrack
   // 저역통과로 급격한 변화 완화 (속도 의존)
   const rPrev = prev.yawRate
-  const beta = THREE.MathUtils.clamp(0.25 + 0.35 * (Math.abs(v)/12), 0.15, 0.7)
+  const beta = THREE.MathUtils.clamp(0.35 + 0.35 * (Math.abs(v)/12), 0.35, 0.7)
   let rCmd = rPrev + beta * (rCmdRaw - rPrev)
-  // 횡가속 한계 기반의 속도 상한 보정: ay = v^2 * |kappa| <= mu*g
+  // 마찰 타원 근사: ay가 한계에 접근할수록 rCmd 축소 (ay = v^2 * |kappa|)
+  const ay = Math.abs(v) * Math.abs(v) * Math.abs(kappa)
   const ayMax = mu * g
+  if (ayMax > 1e-6) {
+    const ratio = Math.min(0.999, ay / ayMax)
+    const scale = Math.sqrt(Math.max(0, 1 - ratio * ratio))
+    rCmd *= scale
+  }
+  // 횡가속 한계 기반의 속도 상한 보정: ay = v^2 * |kappa| <= mu*g
   if (Math.abs(kappa) > 1e-5) {
     const vMaxK = Math.sqrt(ayMax / Math.max(1e-6, Math.abs(kappa)))
     if (v > vMaxK) {
@@ -157,29 +175,40 @@ export function purePursuitController(
     })
   }
 
-  // 1) 프리뷰 기반 속도 계획: 앞쪽 previewDist 구간의 최소 targetSpeed를 사용해 사전 감속
+  // 1) 프리뷰 기반 속도 계획(시간 도메인): 앞으로 previewTime 구간의 최소 targetSpeed 사용
   const all = system.getWaypoints()
   let vWp = 8
+  let tToMin = 1.2
   if (all.length > 0) {
-    // 프리뷰 거리: 18~25m 권장(속도에 따라 가변)
-    const previewDist = THREE.MathUtils.clamp(12 + Math.abs(v)*1.4, 14, 26)
+    // 프리뷰 시간: 1.2~2.0초
+    const previewTime = THREE.MathUtils.clamp(1.2 + Math.abs(v)*0.06, 1.2, 2.0)
     let idx = findNearestIndex(system, state.pos)
     if (idx >= 0) {
-      let dleft = previewDist
+      let tleft = previewTime
       let minSpd = Infinity
       let cur = idx
-      // 앞으로 누적하며 최소 targetSpeed 검색
-      while (dleft > 0 && cur < all.length) {
+      // 앞으로 시간 누적하며 최소 targetSpeed 검색
+      const times: number[] = []
+      const speeds: number[] = []
+      while (tleft > 0 && cur < all.length) {
         const wp = all[cur]
         minSpd = Math.min(minSpd, wp.targetSpeed)
         const seg = all[cur].distanceToNext || 0
         if (seg <= 1e-4) break
-        dleft -= seg
+        const vEst = Math.max(0.3, Math.min(Math.abs(v), wp.targetSpeed))
+        const dtSeg = seg / vEst
+        tleft -= dtSeg
+        times.push(Math.max(0, previewTime - tleft))
+        speeds.push(wp.targetSpeed)
         cur = (cur + 1) % all.length
         // 루프 보호
         if (cur === idx) break
       }
       vWp = isFinite(minSpd) ? minSpd : vWp
+      // 최소 속도에 도달하기까지의 대략적인 시간 추정
+      const k = speeds.findIndex(s => s <= vWp + 1e-6)
+      if (k >= 0 && k < times.length) tToMin = Math.max(0.3, times[k])
+      else tToMin = Math.max(0.8, previewTime)
     }
   }
   // 2) 곡률 기반 상한도 반영(현재 조향 요구)
@@ -205,5 +234,13 @@ export function purePursuitController(
   if (Math.abs(dv) < 0.3) throttle = Math.max(0, throttle)
   // 큰 과속일 때만 완만한 브레이크 허용(하한 -0.4)
   if (dv < -0.5) throttle = Math.max(throttle, -0.4)
+  // 선제 감속 Feed-forward: tToMin 내에 vWp/vDesired 도달을 목표로 음수 스로틀 추가
+  if (v > vDesired + 0.2) {
+    const tPlan = Math.max(0.6, Math.min(2.2, tToMin))
+    const aReq = (v - vDesired) / tPlan // m/s^2
+    const aMax = mu * g
+    const thrFF = -clamp(aReq / Math.max(0.1, aMax), 0, 1)
+    throttle = Math.min(throttle, thrFF)
+  }
   return { throttle, yawRate: rCmd }
 }

@@ -89,6 +89,8 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   const debugTimer = useRef(0)
   const frontHitMarkerRef = useRef<Mesh | null>(null)
   const frontSensorBlocked = useRef(false)
+  // 디버그(요 부호/추종 확인) 타이머
+  const yawSignDebugTimer = useRef(0)
   // 전방 충돌 응답/회피 상태
   const wasFrontBlocked = useRef(false)
   const wallAvoidTimer = useRef(0)
@@ -594,7 +596,10 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       forwardForce.x *= driveSteerScale
       forwardForce.z *= driveSteerScale
     }
-    body.addForce(forwardForce, true)
+    // autopilot의 음수 스로틀은 제동으로 처리하므로 엔진 역추진은 생략
+    if (!(autoControl && driveThrottle < 0)) {
+      body.addForce(forwardForce, true)
+    }
 
     // === 사이드 스턱 탈출 보조 ===
     if (!frontBlocked && sideUnstickCooldown.current <= 0 && throttle > 0 && speed < 1.2 && (leftBlocked || rightBlocked)) {
@@ -758,6 +763,28 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     } else if (Math.abs(av.y) > 0.02) {
       const dampingOnly = -av.y * (dampingGain * 1.0)
       body.addTorque({ x: 0, y: dampingOnly, z: 0 }, true)
+    }
+
+    // === Yaw 부호/추종 디버그 ===
+    const YAW_SIGN_DEBUG = true
+    if (YAW_SIGN_DEBUG && (import.meta as any)?.env?.DEV) {
+      yawSignDebugTimer.current += delta
+      if (yawSignDebugTimer.current > 0.25) {
+        if (hasYawCmd) {
+          const prod = (yawRateCmd as number) * av.y
+          const signOK = Math.abs(yawRateCmd as number) < 1e-3
+            ? Math.abs(av.y) < 0.05
+            : prod > 0
+          // eslint-disable-next-line no-console
+          console.log('[YawCheck]', {
+            mode: autoControl ? 'AI' : 'Manual+Assist',
+            rCmd: (yawRateCmd as number).toFixed(3),
+            avY: av.y.toFixed(3),
+            signOK
+          })
+        }
+        yawSignDebugTimer.current = 0
+      }
     }
 
     // ESC 스타일: 요레이트 하드 리미터로 과회전 방지 (유턴 안정화)
