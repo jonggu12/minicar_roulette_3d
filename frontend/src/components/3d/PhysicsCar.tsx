@@ -4,7 +4,7 @@ import * as RAPIER from '@dimforge/rapier3d-compat'
 import { useFrame } from '@react-three/fiber'
 import { Vector3, Mesh } from 'three'
 import Car from './Car'
-import useGroundAssist from './utils/useGroundAssist'
+import useGroundAssist, { GroundAssistOptions } from './utils/useGroundAssist'
 
 interface PhysicsCarProps {
   position?: [number, number, number]
@@ -29,6 +29,8 @@ interface PhysicsCarProps {
   }) => { throttle: number; yawRate?: number; steer?: number }
   // 동역학 트랙션 한계 계산용 마찰계수(μ)
   mu?: number
+  groundAssistOptions?: Partial<GroundAssistOptions>
+  enabledRotations?: [boolean, boolean, boolean]
   controlKeys?: {
     forward: string
     backward: string
@@ -67,6 +69,8 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   autoControl = false,
   autopilot,
   mu = 0.7,
+  groundAssistOptions,
+  enabledRotations,
   controlKeys = { forward: 'w', backward: 's', left: 'a', right: 'd', brake: ' ' },
   onCollision
 }, ref) => {
@@ -668,7 +672,8 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const baseMass = 800
     const massRatio = m / baseMass
     const yawGain = 650 * (0.6 + 0.4 * speedRatioSteer) * massRatio
-    let torqueY = yawErr * yawGain // P 제어(부호 교정)
+    // P 제어(부호 교정)
+    let pTerm = yawErr * yawGain
     // 선택적 AI 디버그: autopilot 요레이트 명령과 실제 비교
     const AI_DEBUG = false
     if (AI_DEBUG && (import.meta as any)?.env?.DEV) {
@@ -684,7 +689,20 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     }
     // 소량의 요 감쇠(D) 추가해 오버슈트 방지
     const dampingGain = 420 * (0.7 + 0.3 * speedRatioSteer) * massRatio
-    torqueY += -av.y * dampingGain
+    const dTerm = -av.y * dampingGain
+
+    // 속도 페이드인: 저속에서 P 토크를 완만히 키움(피벗 회전 방지)
+    const fadeLow = 0.2, fadeHigh = 1.0
+    const yawFade = clamp((speed - fadeLow) / (fadeHigh - fadeLow), 0, 1)
+    // 전진 성분 게이트: 전진 속도 성분이 작으면 P 토크를 더 줄임
+    const speedForward = tmp.v2.dot(tmp.forward)
+    let forwardGate = 1.0
+    if (speedForward <= 0) forwardGate = 0.3
+    else if (speedForward < 0.2) forwardGate = 0.35
+    else if (speedForward < 0.5) forwardGate = 0.7
+
+    pTerm *= yawFade * forwardGate
+    let torqueY = pTerm + dTerm
     // 토크 캡: 차량별 일관성 유지를 위해 상한 적용(질량 비례)
     const torqueCap = steerStrength * 0.7 * massRatio
     torqueY = Math.max(-torqueCap, Math.min(torqueCap, torqueY))
@@ -731,6 +749,14 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       body.setLinvel({ x: lv.x, y: Math.sign(lv.y) * 16, z: lv.z }, true)
     }
 
+    // 6.5) 롤/피치 각속도 캡: 경사/착지 맵에서 뒤집힘 억제
+    const angNow = body.angvel()
+    const maxRollPitchRate = 4.0 // rad/s
+    const clampRP = (v: number) => Math.max(-maxRollPitchRate, Math.min(maxRollPitchRate, v))
+    if (Math.abs(angNow.x) > maxRollPitchRate || Math.abs(angNow.z) > maxRollPitchRate) {
+      body.setAngvel({ x: clampRP(angNow.x), y: angNow.y, z: clampRP(angNow.z) }, true)
+    }
+
     // 7) 속도 하드캡
     // 하드캡을 타이트하게 조정하여 최고속 근처에서 과도한 가속 억제
     const hardMax = maxSpeed * 1.05
@@ -740,7 +766,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     }
   })
 
-  // Ground assist: 휠 센서 위치와 하부 콜라이더에 맞춰 보정
+  // Ground assist: 휠 센서 위치와 하부 콜라이더에 맞춰 보정 (옵션 병합)
   useGroundAssist(rigidBodyRef, {
     enable: true,
     debug: false,
@@ -753,6 +779,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     bodyHalfHeight: 0.05, // 가장 낮은 콜라이더 바닥까지의 로컬 거리(≈0.05)
     targetGap: 0.04,
     maxSnap: 0.08,
+    ...(groundAssistOptions || {}),
   })
 
     return (
@@ -761,7 +788,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
           position={position}
           rotation={rotation}
       type="dynamic"
-      enabledRotations={[false, true, false]} // 2단계: Y축 회전(조향) 활성화
+      enabledRotations={enabledRotations ?? [false, true, false]} // 기본: Y축만 회전
       linearDamping={0.25}
       angularDamping={4.0}
       canSleep={false}

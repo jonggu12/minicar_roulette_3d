@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export type MapType = 'oval' | 'square'
+export type MapType = 'oval' | 'square' | 'slope'
 
 export interface MapConfig {
   id: MapType
@@ -19,6 +19,11 @@ const mapConfigs: MapConfig[] = [
     id: 'square',
     name: '정사각형 테스트 맵',
     description: '넓은 정사각형 공간\n자유 주행 및 물리 테스트용'
+  }
+  ,{
+    id: 'slope',
+    name: '경사/착지 테스트 맵',
+    description: '경사 정렬 · 소프트 랜딩 검증\nR로 리스폰, 옵션 토글 제공'
   }
 ]
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import TestTrackWithWaypoints from './components/3d/TestTrackWithWaypoints'
 import SquareTestMap from './components/3d/SquareTestMap'
+import SlopeTestMap from './components/3d/SlopeTestMap'
 import MapSelector, { MapType } from './components/ui/MapSelector'
 
 export default function App() {
@@ -27,6 +28,10 @@ export default function App() {
           <SquareTestMap 
             numCars={1}  // 플레이어 차량 1대만
           />
+        )
+      case 'slope':
+        return (
+          <SlopeTestMap />
         )
       default:
         return null
