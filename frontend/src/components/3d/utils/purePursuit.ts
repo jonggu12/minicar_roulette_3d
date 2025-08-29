@@ -64,10 +64,10 @@ export function getLookaheadPoint(system: WaypointProvider, from: THREE.Vector3,
 }
 
 export function getYawFromQuaternion(q: {x:number,y:number,z:number,w:number}): number {
-  // three 기준: yaw around Y
-  const ysqr = q.y * q.y
-  const t3 = +2.0 * (q.w * q.y + q.z * q.x)
-  const t4 = +1.0 - 2.0 * (ysqr + q.x * q.x)
+  // 좌표계: Forward +X, Right +Z, Up +Y (three.js 기본)
+  // 표준 ZYX(roll-pitch-yaw)에서 yaw(=around Y) 추출식
+  const t3 = 2.0 * (q.w * q.y + q.x * q.z)
+  const t4 = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
   return Math.atan2(t3, t4)
 }
 
@@ -94,8 +94,8 @@ export function purePursuitController(
   const Ld = clamp(L0 + kV * Math.abs(v), LdMin, LdMax)
   const look = getLookaheadPoint(system, state.pos, Ld)
   const to = new THREE.Vector2(look.x - state.pos.x, look.z - state.pos.z)
-  const heading = new THREE.Vector2(Math.cos(state.yaw), Math.sin(state.yaw))
-  const alpha = wrapAngle(Math.atan2(to.y, to.x) - Math.atan2(heading.y, heading.x))
+  // X-forward 기준: yaw=0 → +X, yaw 증가 → +Z 방향
+  const alpha = wrapAngle(Math.atan2(to.y, to.x) - state.yaw)
   // 자전거 모델 곡률
   const kappa = (2 * Math.sin(alpha)) / Math.max(1e-3, Ld)
   // 요레이트 목표(속도 * 곡률)
@@ -114,6 +114,21 @@ export function purePursuitController(
   const rStep = rRate * state.dt
   rCmd = clamp(rCmd, rPrev - rStep, rPrev + rStep)
   rCmd = clamp(rCmd, -rMax, rMax)
+
+  // 선택적 디버그 로깅 (개발 모드에서 PP_DEBUG 토글)
+  const PP_DEBUG = false
+  if (PP_DEBUG && (import.meta as any)?.env?.DEV) {
+    // 간단한 각도/속도 출력
+    // eslint-disable-next-line no-console
+    console.log('PP Debug', {
+      carPos: `(${state.pos.x.toFixed(1)}, ${state.pos.z.toFixed(1)})`,
+      lookAhead: `(${look.x.toFixed(1)}, ${look.z.toFixed(1)})`,
+      yawDeg: (state.yaw * 180/Math.PI).toFixed(1),
+      alphaDeg: (alpha * 180/Math.PI).toFixed(1),
+      kappa: kappa.toFixed(4),
+      yawRate: rCmd.toFixed(3),
+    })
+  }
 
   // 1) 프리뷰 기반 속도 계획: 앞쪽 previewDist 구간의 최소 targetSpeed를 사용해 사전 감속
   const all = system.getWaypoints()

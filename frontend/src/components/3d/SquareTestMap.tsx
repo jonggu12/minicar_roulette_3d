@@ -1,11 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Physics, RigidBody, CuboidCollider, RapierRigidBody } from '@react-three/rapier'
 import PhysicsCar from './PhysicsCar'
 import * as RAPIER from '@dimforge/rapier3d-compat'
 import CameraController, { CameraView } from './CameraController'
 import * as THREE from 'three'
-import { purePursuitController, PPParams } from './utils/purePursuit'
+import { purePursuitController, PPParams, getLookaheadPoint } from './utils/purePursuit'
 import { StraightWaypointSystem } from './utils/straightWaypointSystem'
 import { TurnWaypointSystem } from './utils/turnWaypointSystem'
 
@@ -35,17 +35,19 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
     if (pathType === 'straight') {
       return new StraightWaypointSystem(start, new THREE.Vector3(mapSize / 2 - FINISH_MARGIN, 0, 0), 2.0, 14)
     } else if (pathType === 'right') {
-      return new TurnWaypointSystem(start, straightEndX, 12, 1.6, 14, 7.5, 'right', mapSize/2 - FINISH_MARGIN)
+      // 웨이포인트 샘플 간격을 1.0으로 좁혀 정밀 추종
+      return new TurnWaypointSystem(start, straightEndX, 12, 1.0, 14, 7.5, 'right', mapSize/2 - FINISH_MARGIN)
     } else {
-      return new TurnWaypointSystem(start, straightEndX, 12, 1.6, 14, 7.5, 'left', mapSize/2 - FINISH_MARGIN)
+      return new TurnWaypointSystem(start, straightEndX, 12, 1.0, 14, 7.5, 'left', mapSize/2 - FINISH_MARGIN)
     }
   }, [pathType, mapSize])
 
   // PP 파라미터(직선용)
   const ppParams: PPParams = useMemo(() => ({
     L: 1.8,
-    L0: 1.2,
-    kV: 0.8,
+    // 룩어헤드: 기본 2.0m, 속도 계수 1.0으로 상향
+    L0: 2.0,
+    kV: 1.0,
     LdMin: 0.8,
     LdMax: 8.0,
     rMax: 1.0,
@@ -55,6 +57,19 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   }), [])
 
   const aiStates = useRef<{ yawRate: number; vTarget?: number }[]>([])
+  const ppDebugRef = useRef<{ look?: THREE.Vector3 }>({})
+
+  // R 키로 차량만 리스폰 (선택된 경로 유지)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        respawnAI()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // 경로 변경 시 차량 리스폰(출발선 재배치)
   const respawnAI = () => {
@@ -125,6 +140,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
           <p>🛑 스페이스: 브레이크</p>
           <p>🎥 V: 카메라 전환 (Overview/Follow)</p>
           <p>🖱️ 휠: Follow에서 줌 인/아웃</p>
+          <p>🔁 R: 차량 리스폰 (경로 유지)</p>
         </div>
 
         {/* 경로 선택 버튼 (정보 패널 바로 아래) */}
@@ -346,6 +362,14 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
             </RigidBody>
           ))}
 
+          {/* PP 룩어헤드 포인트 시각화 (디버그) */}
+          {ppDebugRef.current.look && (
+            <mesh position={[ppDebugRef.current.look.x, 0.2, ppDebugRef.current.look.z]}>
+              <sphereGeometry args={[0.22, 10, 10]} />
+              <meshStandardMaterial color="#ff4444" />
+            </mesh>
+          )}
+
           {/* AI 차량 1대: 출발선 좌측 약간 뒤에서 시작 */}
           <PhysicsCar
             key={`car-ai-pp`}
@@ -368,6 +392,9 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
                 speed: st.speed,
                 dt: st.dt,
               }, prev, ppParams)
+              // 룩어헤드 디버그 계산/저장
+              const Ld = Math.max(ppParams.LdMin, Math.min(ppParams.LdMax, ppParams.L0 + ppParams.kV * Math.abs(st.speed)))
+              ppDebugRef.current.look = getLookaheadPoint(currentSystem, st.position, Ld)
               prev.yawRate = cmd.yawRate
               prev.vTarget = Math.max(0, (prev.vTarget ?? st.speed) + ((cmd.throttle>=0?1:-1) * Math.abs(cmd.throttle) * 0.5))
               return { throttle: cmd.throttle, yawRate: cmd.yawRate }

@@ -447,10 +447,10 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       if (autopilot) {
         const t = body.translation()
         const q = body.rotation()
-        // yaw 추출
-        const ysqr = q.y * q.y
-        const t3 = +2.0 * (q.w * q.y + q.z * q.x)
-        const t4 = +1.0 - 2.0 * (ysqr + q.x * q.x)
+        // yaw 추출 (Forward +X, Right +Z, Up +Y)
+        // 표준 ZYX(roll-pitch-yaw)에서 yaw(=around Y)
+        const t3 = 2.0 * (q.w * q.y + q.x * q.z)
+        const t4 = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
         const yaw = Math.atan2(t3, t4)
         const cmd = autopilot({
           position: new Vector3(t.x, t.y, t.z),
@@ -661,12 +661,27 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       : (typeof steerCmdAI === 'number')
         ? steerCmdAI * yawRateMax * speedRatioSteer
         : (steer * yawRateMax * speedRatioSteer)
+    // 작은 명령은 무시해 직진 안정화(데드밴드)
+    if (Math.abs(targetYaw) < 0.03) targetYaw = 0
     const yawErr = targetYaw - av.y
     // 질량 스케일 보정: 무거울수록 더 큰 토크 필요 → 게인/캡을 질량비로 스케일
     const baseMass = 800
     const massRatio = m / baseMass
     const yawGain = 650 * (0.6 + 0.4 * speedRatioSteer) * massRatio
-    let torqueY = -yawErr * yawGain // P 제어
+    let torqueY = yawErr * yawGain // P 제어(부호 교정)
+    // 선택적 AI 디버그: autopilot 요레이트 명령과 실제 비교
+    const AI_DEBUG = false
+    if (AI_DEBUG && (import.meta as any)?.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.log('[AI Yaw]', {
+        cmd: yawRateCmd,
+        target: targetYaw.toFixed(3),
+        avY: av.y.toFixed(3),
+        err: yawErr.toFixed(3),
+        gain: yawGain.toFixed(1),
+        torqueY: torqueY.toFixed(1)
+      })
+    }
     // 소량의 요 감쇠(D) 추가해 오버슈트 방지
     const dampingGain = 420 * (0.7 + 0.3 * speedRatioSteer) * massRatio
     torqueY += -av.y * dampingGain
@@ -674,9 +689,12 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const torqueCap = steerStrength * 0.7 * massRatio
     torqueY = Math.max(-torqueCap, Math.min(torqueCap, torqueY))
 
-    // 조향 조건 강화: 충분한 속도 + 추진력이 있을 때 주토크 적용, 아니면 감쇠만
+    // 조향 조건: autopilot의 yawRate 명령이 있거나 사용자 steer 입력이 있으면 토크 적용
+    // throttle 유무와 무관하게 조향 가능하도록 수정
     const hasThrottle = Math.abs(targetThrottle) > 0.05
-    if (Math.abs(steer) > 0.01 && speed > minSteerSpeed && hasThrottle && Math.abs(torqueY) > 1e-3) {
+    const hasYawCmd = typeof yawRateCmd === 'number' && isFinite(yawRateCmd as number)
+    const wantYaw = hasYawCmd || Math.abs(steer) > 0.01
+    if (wantYaw && (speed > minSteerSpeed || hasYawCmd) && Math.abs(torqueY) > 1e-3) {
       body.addTorque({ x: 0, y: torqueY, z: 0 }, true)
     } else if (Math.abs(av.y) > 0.02) {
       const dampingOnly = -av.y * (dampingGain * 1.0)
