@@ -16,6 +16,7 @@ interface TestTrackWithWaypointsProps {
   showDirections?: boolean
   showNormals?: boolean
   numCars?: number
+  allAI?: boolean // true면 모든 차량을 AI(PP)로 제어
 }
 
 const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
@@ -23,7 +24,8 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
   showSpeeds = false,
   showDirections = false,
   showNormals = false,
-  numCars = 4
+  numCars = 4,
+  allAI = true
 }) => {
   const [isDebugMode, setIsDebugMode] = useState(true)
   const [cameraView, setCameraView] = useState<CameraView>(CameraView.OVERVIEW)
@@ -40,9 +42,9 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
         trackWidth: 16           // Doubled from 8 to 16 (much wider racing surface)
       },
       {
-        // Waypoint config optimized for Indy500 racing
-        straightSpacing: 4.0,    // Wide spacing on long straights
-        cornerSpacing: 0.8,      // Tight spacing on sharp corners  
+        // Waypoint config tuned to reduce zig-zag (more uniform sampling)
+        straightSpacing: 2.0,    // 2.0m on straights
+        cornerSpacing: 1.2,      // 1.2m on corners
         speedLimit: 18,          // Very high speed on straights
         cornerSpeedFactor: 0.35, // Much slower in tight corners
         maxLateralAccel: 9.0     // High lateral acceleration for sharp turns
@@ -53,12 +55,12 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
   // PP 파라미터(초기값)
   const ppParams: PPParams = useMemo(() => ({
     L: 1.8,
-    L0: 1.0,
-    kV: 0.6,
+    L0: 1.4,
+    kV: 0.9,
     LdMin: 0.8,
     LdMax: 6.0,
     rMax: 1.7,
-    rRate: 4.0,
+    rRate: 2.0,
     mu: 0.7,
     g: 9.81,
   }), [])
@@ -264,33 +266,39 @@ const TestTrackWithWaypoints: React.FC<TestTrackWithWaypointsProps> = ({
           />
 
           {/* Test cars positioned at starting grid */}
-          {startPositions.slice(0, numCars).map((position, index) => (
-            <PhysicsCar
-              key={`car-${index}`}
-              ref={index === 0 ? playerCarRef : undefined}
-              position={position}
-              rotation={[0, Math.PI, 0]}
-              color={carColors[index % carColors.length]}
-              name={`Car ${index + 1}`}
-              autoControl={index > 0}
-              mu={0.7}
-              autopilot={index > 0 ? ((st) => {
-                // AI별 레이트 리밋 상태 저장
-                if (!aiStates.current[index]) aiStates.current[index] = { yawRate: 0 }
-                const prev = aiStates.current[index]
-                const cmd = purePursuitController(waypointSystem, {
-                  pos: st.position,
-                  yaw: st.yaw,
-                  vel: st.velocity,
-                  speed: st.speed,
-                  dt: st.dt,
-                }, prev, ppParams)
-                // 업데이트
-                prev.yawRate = cmd.yawRate
-                return { throttle: cmd.throttle, yawRate: cmd.yawRate }
-              }) : undefined}
-            />
-          ))}
+          {startPositions.slice(0, numCars).map((position, index) => {
+            const isAI = allAI || index > 0
+            return (
+              <PhysicsCar
+                key={`car-${index}`}
+                ref={index === 0 ? playerCarRef : undefined}
+                position={position}
+                rotation={[0, Math.PI, 0]}
+                color={carColors[index % carColors.length]}
+                name={`Car ${index + 1}`}
+                autoControl={isAI}
+                maxSpeed={14}
+                engineForce={5200}
+                mu={0.8}
+                autopilot={isAI ? ((st) => {
+                  // AI별 레이트 리밋 상태 저장
+                  if (!aiStates.current[index]) aiStates.current[index] = { yawRate: 0, vTarget: st.speed }
+                  const prev = aiStates.current[index]
+                  const cmd = purePursuitController(waypointSystem, {
+                    pos: st.position,
+                    yaw: st.yaw,
+                    vel: st.velocity,
+                    speed: st.speed,
+                    dt: st.dt,
+                  }, prev, ppParams)
+                  // 업데이트
+                  prev.yawRate = cmd.yawRate
+                  prev.vTarget = Math.max(0, (prev.vTarget ?? st.speed) + ((cmd.throttle>=0?1:-1) * Math.abs(cmd.throttle) * 0.5))
+                  return { throttle: cmd.throttle, yawRate: cmd.yawRate }
+                }) : undefined}
+              />
+            )
+          })}
 
           {/* Waypoint visualization */}
           <WaypointVisualizer

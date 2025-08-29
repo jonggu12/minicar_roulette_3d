@@ -7,6 +7,7 @@ import CameraController, { CameraView } from './CameraController'
 import * as THREE from 'three'
 import { purePursuitController, PPParams } from './utils/purePursuit'
 import { StraightWaypointSystem } from './utils/straightWaypointSystem'
+import { TurnWaypointSystem } from './utils/turnWaypointSystem'
 
 interface SquareTestMapProps {
   numCars?: number
@@ -19,30 +20,52 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
   const playerCarRef = useRef<RapierRigidBody>(null)
   // 정사각형 맵 설정
   const mapSize = 120  // 120m x 120m 큰 정사각형
+  const START_MARGIN = 4   // 출발선/차량을 벽 안쪽으로 이동
+  const FINISH_MARGIN = 4  // 도착선도 벽 안쪽으로 이동
   const wallHeight = 3.0
   const wallThickness = 2.0
 
-  // 직선 웨이포인트(서→동) 생성
-  const straightSystem = useMemo(() => {
-    const start = new THREE.Vector3(-40, 0, 0)
-    const end = new THREE.Vector3(40, 0, 0)
-    return new StraightWaypointSystem(start, end, 2.0, 12)
-  }, [])
+  type PathType = 'straight' | 'right' | 'left'
+  const [pathType, setPathType] = useState<PathType>('straight')
+  // 현재 웨이포인트 제공자 (직선 2/3, 코너 1/3 구성)
+  const currentSystem = useMemo(() => {
+    const startX = -mapSize / 2 + START_MARGIN
+    const start = new THREE.Vector3(startX, 0, 0)
+    const straightEndX = startX + (mapSize * 2) / 3 // 전체 길이의 2/3 지점(시작점 기준)
+    if (pathType === 'straight') {
+      return new StraightWaypointSystem(start, new THREE.Vector3(mapSize / 2 - FINISH_MARGIN, 0, 0), 2.0, 14)
+    } else if (pathType === 'right') {
+      return new TurnWaypointSystem(start, straightEndX, 12, 1.6, 14, 7.5, 'right', mapSize/2 - FINISH_MARGIN)
+    } else {
+      return new TurnWaypointSystem(start, straightEndX, 12, 1.6, 14, 7.5, 'left', mapSize/2 - FINISH_MARGIN)
+    }
+  }, [pathType, mapSize])
 
   // PP 파라미터(직선용)
   const ppParams: PPParams = useMemo(() => ({
     L: 1.8,
-    L0: 1.0,
-    kV: 0.6,
+    L0: 1.2,
+    kV: 0.8,
     LdMin: 0.8,
-    LdMax: 6.0,
-    rMax: 1.2,
-    rRate: 5.0,
-    mu: 0.7,
+    LdMax: 8.0,
+    rMax: 1.0,
+    rRate: 2.5,
+    mu: 0.8,
     g: 9.81,
   }), [])
 
-  const aiStates = useRef<{ yawRate: number }[]>([])
+  const aiStates = useRef<{ yawRate: number; vTarget?: number }[]>([])
+
+  // 경로 변경 시 차량 리스폰(출발선 재배치)
+  const respawnAI = () => {
+    const rb = playerCarRef.current
+    if (!rb) return
+    rb.setTranslation({ x: (-mapSize / 2) + START_MARGIN - 2, y: 0.5, z: 0 }, true)
+    rb.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true)
+    rb.setLinvel({ x: 0, y: 0, z: 0 }, true)
+    rb.setAngvel({ x: 0, y: 0, z: 0 }, true)
+    aiStates.current[0] = { yawRate: 0, vTarget: 0 }
+  }
 
   // 시작 위치들 - 맵 중앙 근처에 격자 배치
   const startPositions = useMemo(() => {
@@ -67,6 +90,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      {/* 경로 선택 UI는 정보 패널 내부 하단에 표시 (아래에서 추가) */}
       {/* 맵 정보 UI */}
       <div style={{
         position: 'absolute',
@@ -101,6 +125,24 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
           <p>🛑 스페이스: 브레이크</p>
           <p>🎥 V: 카메라 전환 (Overview/Follow)</p>
           <p>🖱️ 휠: Follow에서 줌 인/아웃</p>
+        </div>
+
+        {/* 경로 선택 버튼 (정보 패널 바로 아래) */}
+        <div style={{ marginTop: '10px', display: 'flex', gap: 8 }}>
+          {(['straight','right','left'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setPathType(t); setTimeout(respawnAI, 0) }}
+              style={{
+                padding: '8px 10px',
+                background: pathType === t ? '#4CAF50' : 'rgba(255,255,255,0.9)',
+                color: pathType === t ? '#fff' : '#333',
+                border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12
+              }}
+            >
+              {t === 'straight' ? '직선' : t === 'right' ? '우회전' : '좌회전'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -272,26 +314,34 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
             </mesh>
           </RigidBody>
 
-          {/* 출발/도착선 */}
-          <RigidBody type="fixed" position={[-40, 0.01, 0]} colliders={false}>
+          {/* 출발/도착선 - 벽 안쪽 마진 적용 */}
+          <RigidBody type="fixed" position={[-mapSize/2 + START_MARGIN, 0.01, 0]} colliders={false}>
             <mesh rotation={[-Math.PI/2, 0, 0]}>
               <planeGeometry args={[6, 1]} />
               <meshStandardMaterial color="#00ff00" transparent opacity={0.8} />
             </mesh>
           </RigidBody>
-          <RigidBody type="fixed" position={[40, 0.01, 0]} colliders={false}>
-            <mesh rotation={[-Math.PI/2, 0, 0]}>
-              <planeGeometry args={[6, 1]} />
-              <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
-            </mesh>
-          </RigidBody>
+          {(() => {
+            const wps = currentSystem.getWaypoints()
+            const last = wps[wps.length - 1]?.position
+            const fx = last ? last.x : (mapSize/2 - FINISH_MARGIN)
+            const fz = last ? last.z : 0
+            return (
+              <RigidBody type="fixed" position={[fx, 0.01, fz]} colliders={false}>
+                <mesh rotation={[-Math.PI/2, 0, 0]}>
+                  <planeGeometry args={[6, 1]} />
+                  <meshStandardMaterial color="#ffffff" transparent opacity={0.8} />
+                </mesh>
+              </RigidBody>
+            )
+          })()}
 
-          {/* 직선 웨이포인트 시각화 */}
-          {straightSystem.getWaypoints().map((wp, i) => (
+          {/* 웨이포인트 시각화 */}
+          {currentSystem.getWaypoints().map((wp, i, arr) => (
             <RigidBody key={`wp-${i}`} type="fixed" position={[wp.position.x, 0.05, wp.position.z]} colliders={false}>
               <mesh>
                 <sphereGeometry args={[0.15, 10, 10]} />
-                <meshStandardMaterial color={i === 0 ? '#00ff00' : (i === straightSystem.getWaypoints().length-1 ? '#ffffff' : '#2196f3')} />
+                <meshStandardMaterial color={i === 0 ? '#00ff00' : (i === arr.length-1 ? '#ffffff' : '#2196f3')} />
               </mesh>
             </RigidBody>
           ))}
@@ -300,17 +350,18 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
           <PhysicsCar
             key={`car-ai-pp`}
             ref={playerCarRef}
-            position={[-42, 0.5, 0]}
+            position={[(-mapSize/2) + START_MARGIN - 2, 0.5, 0]}
             rotation={[0, 0, 0]}
             color={'#ff4444'}
             name={`AI-PP`}
             autoControl={true}
-            maxSpeed={12}
-            mu={0.7}
+            maxSpeed={14}
+            engineForce={5200}
+            mu={0.8}
             autopilot={(st) => {
-              if (!aiStates.current[0]) aiStates.current[0] = { yawRate: 0 }
+              if (!aiStates.current[0]) aiStates.current[0] = { yawRate: 0, vTarget: st.speed }
               const prev = aiStates.current[0]
-              const cmd = purePursuitController(straightSystem, {
+              const cmd = purePursuitController(currentSystem, {
                 pos: st.position,
                 yaw: st.yaw,
                 vel: st.velocity,
@@ -318,6 +369,7 @@ const SquareTestMap: React.FC<SquareTestMapProps> = ({
                 dt: st.dt,
               }, prev, ppParams)
               prev.yawRate = cmd.yawRate
+              prev.vTarget = Math.max(0, (prev.vTarget ?? st.speed) + ((cmd.throttle>=0?1:-1) * Math.abs(cmd.throttle) * 0.5))
               return { throttle: cmd.throttle, yawRate: cmd.yawRate }
             }}
           />

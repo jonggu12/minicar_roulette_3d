@@ -71,10 +71,22 @@ export function getYawFromQuaternion(q: {x:number,y:number,z:number,w:number}): 
   return Math.atan2(t3, t4)
 }
 
+// 내부 유틸: 최근접 인덱스 찾기
+function findNearestIndex(system: WaypointProvider, from: THREE.Vector3): number {
+  const wps = system.getWaypoints()
+  if (wps.length === 0) return -1
+  let best = 0, bestD = from.distanceTo(wps[0].position)
+  for (let i=1;i<wps.length;i++){
+    const d = from.distanceTo(wps[i].position)
+    if (d < bestD) { bestD = d; best = i }
+  }
+  return best
+}
+
 export function purePursuitController(
   system: WaypointProvider,
   state: AutoState,
-  prev: { yawRate: number },
+  prev: { yawRate: number; vTarget?: number },
   params: PPParams
 ): AutoCmd {
   const { L, L0, kV, LdMin, LdMax, rMax, rRate, mu, g } = params
@@ -103,20 +115,53 @@ export function purePursuitController(
   rCmd = clamp(rCmd, rPrev - rStep, rPrev + rStep)
   rCmd = clamp(rCmd, -rMax, rMax)
 
-  // 간단한 크루즈 컨트롤: v_target = waypoint 기반 평균 + 곡률 기반 제한
-  const wps = system.getWaypointsInRange(state.pos, 8)
+  // 1) 프리뷰 기반 속도 계획: 앞쪽 previewDist 구간의 최소 targetSpeed를 사용해 사전 감속
+  const all = system.getWaypoints()
   let vWp = 8
-  if (wps.length > 0) {
-    vWp = wps.reduce((s, w) => s + w.targetSpeed, 0) / wps.length
+  if (all.length > 0) {
+    // 프리뷰 거리: 18~25m 권장(속도에 따라 가변)
+    const previewDist = THREE.MathUtils.clamp(12 + Math.abs(v)*1.4, 14, 26)
+    let idx = findNearestIndex(system, state.pos)
+    if (idx >= 0) {
+      let dleft = previewDist
+      let minSpd = Infinity
+      let cur = idx
+      // 앞으로 누적하며 최소 targetSpeed 검색
+      while (dleft > 0 && cur < all.length) {
+        const wp = all[cur]
+        minSpd = Math.min(minSpd, wp.targetSpeed)
+        const seg = all[cur].distanceToNext || 0
+        if (seg <= 1e-4) break
+        dleft -= seg
+        cur = (cur + 1) % all.length
+        // 루프 보호
+        if (cur === idx) break
+      }
+      vWp = isFinite(minSpd) ? minSpd : vWp
+    }
   }
-  // 곡률 기반 상한도 반영
+  // 2) 곡률 기반 상한도 반영(현재 조향 요구)
   let vK = Infinity
   if (Math.abs(kappa) > 1e-6) vK = Math.sqrt(ayMax / Math.abs(kappa))
-  const vTarget = Math.min(vWp, vK)
+  const vDesired = Math.min(vWp, vK)
+  // 3) 속도 목표 완만 변경: 가·감속 램프 한계 적용
+  const vPrev = prev.vTarget ?? state.speed
+  const accelRate = 4.0   // m/s^2 가속 램프 (목표 변화율)
+  const decelRate = 3.0   // m/s^2 감속 램프 (목표 변화율)
+  const maxUp = accelRate * state.dt
+  const maxDn = decelRate * state.dt
+  let vTarget = vPrev
+  const dvDes = vDesired - vPrev
+  if (dvDes > 0) vTarget = vPrev + Math.min(maxUp, dvDes)
+  else vTarget = vPrev + Math.max(-maxDn, dvDes)
 
-  // 스로틀 P 제어: 간단히 -k*(v - vTarget)
-  const kP = 0.25
-  let throttle = clamp(kP * (vTarget - v), -1, 1)
-  // 너무 큰 감속은 브레이크 비중 ↑ (음수로)
+  // 4) 스로틀 제어: P제어 + 데드밴드(작은 과속은 브레이크 금지)
+  const kP = 0.22
+  const dv = vTarget - v
+  let throttle = clamp(kP * dv, -1, 1)
+  // ±0.3 m/s 이내는 코스팅(음수 금지)
+  if (Math.abs(dv) < 0.3) throttle = Math.max(0, throttle)
+  // 큰 과속일 때만 완만한 브레이크 허용(하한 -0.4)
+  if (dv < -0.5) throttle = Math.max(throttle, -0.4)
   return { throttle, yawRate: rCmd }
 }

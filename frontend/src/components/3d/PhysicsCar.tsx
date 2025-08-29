@@ -62,7 +62,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
   engineForce = 2300,
   brakeForce = 6500,
   // 기준 최고속(체감 속도 낮춤): 12 -> 9
-  maxSpeed = 9,
+  maxSpeed = 12,
   steerStrength = 850,
   autoControl = false,
   autopilot,
@@ -632,11 +632,11 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
     const lateralVelocity = tmp.v2.dot(tmp.right)
     
     // 측면 미끄러짐이 있으면 반대 힘 적용 (완화됨)
-    if (Math.abs(lateralVelocity) > 0.1) {
+    if (Math.abs(lateralVelocity) > 0.15) {
       // 저속·대조향에서 횡저항을 가중해 유턴 시 스핀 억제
       const steerLoadAbs = Math.abs(steer)
       const lowSpeedFactor = 1 - clamp(speed / 6, 0, 1)
-      const lateralGain = 1.2 + 1.5 * steerLoadAbs * lowSpeedFactor
+      const lateralGain = 0.9 + 1.0 * steerLoadAbs * lowSpeedFactor
       const lateralDrag = -lateralVelocity * m * lateralGain
       const lateralForce = {
         x: tmp.right.x * lateralDrag,
@@ -699,7 +699,7 @@ const PhysicsCar = forwardRef<RapierRigidBody, PhysicsCarProps>(({
       const ms = Math.max(1, maxSpeed)
       const scaleQ = (baseMax / ms) * (baseMax / ms) // v^2 항목 스케일
       const scaleL = (baseMax / ms)                  // v 항목 스케일
-      const dragKBase = 0.25, rollKBase = 8, downKBase = 0.2
+      const dragKBase = 0.22, rollKBase = 7, downKBase = 0.2
       const dragK = dragKBase * scaleQ
       const rollK = rollKBase * scaleL
       const downK = downKBase * scaleQ
